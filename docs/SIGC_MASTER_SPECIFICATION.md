@@ -61,12 +61,29 @@ A aplicação será projetada com foco em segurança, rastreabilidade, auditoria
 
 O projeto será desenvolvido inicialmente para uma única filial, porém sua arquitetura deverá permitir futuras melhorias e adaptações, incluindo a possibilidade de expansão para múltiplas filiais e a criação de permissões personalizadas pelo Administrador Master.
 
-
 ---
 
 # 3. Problema
 
-[Esta seção será preenchida na próxima etapa.]
+A operação de uma concessionária de veículos pesados envolve a aquisição de peças que possuem a obrigação de devolução de cascos aos respectivos fornecedores. Esses cascos podem permanecer temporariamente em estoque, ser utilizados em serviços realizados pela oficina ou ser comercializados através do balcão de peças.
+
+O controle desse processo exige o acompanhamento de diversas etapas relacionadas entre si. É necessário identificar a compra de origem da peça, controlar o prazo de devolução do casco ao fornecedor, registrar a saída da peça para o cliente, acompanhar a devolução posterior do casco e, finalmente, controlar a devolução do casco ao fornecedor.
+
+O sistema principal utilizado pela empresa possui recursos para controle de estoque, vendas de peças e gerenciamento de Ordens de Serviço, porém não possui funcionalidades específicas para controlar o ciclo de vida dos cascos. Por esse motivo, o SIGC será desenvolvido como um sistema independente e especializado nesse processo.
+
+A ausência de um controle específico pode dificultar a identificação dos cascos que ainda estão pendentes de devolução, dos cascos que permanecem com clientes, dos cascos que já foram devolvidos e dos cascos disponíveis para devolução aos fornecedores.
+
+Outro fator relevante é que os prazos de devolução são relacionados à data de emissão da Nota Fiscal de compra. Dessa forma, o controle inadequado da origem das peças pode dificultar a priorização correta das saídas e aumentar o risco de perda de prazos.
+
+Uma mesma Nota Fiscal de compra pode conter diferentes peças sujeitas à devolução de casco e múltiplas unidades de um mesmo item. Além disso, uma determinada peça pode ser utilizada em diferentes momentos e suas unidades podem ser vinculadas a diferentes vendas ou Ordens de Serviço.
+
+Também podem ocorrer devoluções parciais por parte dos clientes e devoluções parciais ao fornecedor. Dessa forma, o controle exige que as quantidades sejam acompanhadas de forma precisa em cada etapa do processo, evitando registros superiores às quantidades efetivamente disponíveis ou pendentes.
+
+A utilização de controles manuais ou dispersos pode aumentar o risco de inconsistências, perda de informações, dificuldade de auditoria e atraso na identificação de situações urgentes ou vencidas.
+
+O SIGC surge, portanto, com o objetivo de centralizar e organizar as informações relacionadas aos cascos, permitindo rastrear suas movimentações desde a compra da peça até a devolução final ao fornecedor.
+
+O sistema deverá proporcionar maior visibilidade sobre os cascos pendentes, facilitar o acompanhamento das devoluções dos clientes, auxiliar no controle dos prazos de devolução aos fornecedores e preservar o histórico das operações realizadas.
 
 ---
 
