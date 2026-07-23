@@ -41,7 +41,26 @@ O sistema será utilizado inicialmente por uma única filial de uma concessioná
 
 # 2. Visão Geral
 
-[Esta seção será preenchida na próxima etapa.]
+O SIGC — Sistema Integrado de Gestão de Cascos é uma aplicação desktop desenvolvida para auxiliar no controle, rastreamento e gerenciamento do ciclo de vida de cascos relacionados a peças de veículos pesados, especialmente caminhões.
+
+O sistema será utilizado inicialmente em uma única filial de uma concessionária Volkswagen e funcionará de forma independente do sistema principal da empresa. Seu objetivo é complementar os processos existentes, concentrando exclusivamente as informações necessárias para o controle dos cascos que precisam ser devolvidos aos fornecedores.
+
+O ciclo controlado pelo SIGC inicia-se na aquisição de peças que possuem obrigação de devolução de casco. Essas peças são registradas juntamente com as informações necessárias para o controle, incluindo sua descrição, código original, fornecedor, quantidade adquirida, data da compra e prazo para devolução.
+
+Após a aquisição, as peças podem ser utilizadas em operações de venda para clientes da oficina ou do balcão. O sistema deverá registrar a saída da peça, associando-a à respectiva Ordem de Serviço ou Nota Fiscal e identificando o cliente de forma simplificada.
+
+Quando o cliente devolver o casco, o usuário autorizado deverá registrar a devolução no sistema. O SIGC deverá controlar devoluções totais e parciais, mantendo o vínculo com a saída original e impedindo que sejam registradas quantidades superiores à quantidade pendente de devolução.
+
+Após o recebimento do casco, o sistema deverá controlar sua disponibilidade para devolução ao fornecedor. As devoluções ao fornecedor poderão ser realizadas de forma total ou parcial e poderão conter diferentes peças provenientes da mesma Nota Fiscal de compra.
+
+O sistema deverá utilizar a lógica FIFO (First In, First Out) para associar automaticamente as saídas às compras mais antigas disponíveis, priorizando as peças adquiridas primeiro. Essa regra tem como objetivo reduzir o risco de vencimento dos prazos de devolução dos cascos.
+
+O SIGC também deverá fornecer dashboards, consultas e relatórios que permitam aos usuários acompanhar os cascos pendentes, devolvidos, parcialmente devolvidos, urgentes e atrasados.
+
+A aplicação será projetada com foco em segurança, rastreabilidade, auditoria, preservação do histórico e facilidade de utilização. Todas as operações relevantes deverão ser associadas ao usuário responsável e alterações ou cancelamentos não deverão eliminar fisicamente informações históricas.
+
+O projeto será desenvolvido inicialmente para uma única filial, porém sua arquitetura deverá permitir futuras melhorias e adaptações, incluindo a possibilidade de expansão para múltiplas filiais e a criação de permissões personalizadas pelo Administrador Master.
+
 
 ---
 
