@@ -12,21 +12,29 @@ def main() -> None:
     for table in tables:
         print(f"- {table}")
 
-    print("\nColunas de roles:")
-    for column in inspector.get_columns("roles"):
-        print(f"- {column['name']}")
+    tables_to_check = [
+        "roles",
+        "users",
+        "parts",
+        "suppliers",
+        "supplier_contacts",
+    ]
 
-    print("\nColunas de users:")
-    for column in inspector.get_columns("users"):
-        print(f"- {column['name']}")
+    for table in tables_to_check:
+        print(f"\nColunas de {table}:")
+        for column in inspector.get_columns(table):
+            print(f"- {column['name']}")
 
-    print("\nChaves estrangeiras de users:")
-    for foreign_key in inspector.get_foreign_keys("users"):
-        print(
-            f"- {foreign_key['constrained_columns']} "
-            f"-> {foreign_key['referred_table']}."
-            f"{foreign_key['referred_columns']}"
-        )
+    print("\nChaves estrangeiras:")
+    for table in tables_to_check:
+        foreign_keys = inspector.get_foreign_keys(table)
+
+        for foreign_key in foreign_keys:
+            print(
+                f"- {table}.{foreign_key['constrained_columns']} "
+                f"-> {foreign_key['referred_table']}."
+                f"{foreign_key['referred_columns']}"
+            )
 
 
 if __name__ == "__main__":
