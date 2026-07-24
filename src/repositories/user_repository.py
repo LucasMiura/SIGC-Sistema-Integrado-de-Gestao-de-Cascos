@@ -30,3 +30,8 @@ class UserRepository:
         self.session.add(user)
         self.session.flush()
         return user
+
+    def save(self, user: User) -> User:
+        self.session.add(user)
+        self.session.flush()
+        return user

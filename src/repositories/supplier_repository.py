@@ -10,15 +10,57 @@ class SupplierRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_by_id(self, supplier_id: int) -> Supplier | None:
-        statement = select(Supplier).where(Supplier.id == supplier_id)
+    def get_by_id(
+        self,
+        supplier_id: int,
+    ) -> Supplier | None:
+        statement = select(
+            Supplier
+        ).where(
+            Supplier.id == supplier_id
+        )
+
         return self.session.scalar(statement)
 
-    def list_all(self) -> list[Supplier]:
-        statement = select(Supplier).order_by(Supplier.name)
-        return list(self.session.scalars(statement).all())
+    def get_by_document(
+        self,
+        document: str,
+    ) -> Supplier | None:
+        statement = select(
+            Supplier
+        ).where(
+            Supplier.document == document
+        )
 
-    def add(self, supplier: Supplier) -> Supplier:
+        return self.session.scalar(statement)
+
+    def list_all(
+        self,
+    ) -> list[Supplier]:
+        statement = select(
+            Supplier
+        ).order_by(
+            Supplier.name
+        )
+
+        return list(
+            self.session.scalars(
+                statement
+            ).all()
+        )
+
+    def add(
+        self,
+        supplier: Supplier,
+    ) -> Supplier:
+        self.session.add(supplier)
+        self.session.flush()
+        return supplier
+
+    def save(
+        self,
+        supplier: Supplier,
+    ) -> Supplier:
         self.session.add(supplier)
         self.session.flush()
         return supplier

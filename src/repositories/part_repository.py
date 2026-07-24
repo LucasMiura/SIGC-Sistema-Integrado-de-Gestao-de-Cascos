@@ -26,3 +26,8 @@ class PartRepository:
         self.session.add(part)
         self.session.flush()
         return part
+
+    def save(self, part: Part) -> Part:
+        self.session.add(part)
+        self.session.flush()
+        return part
