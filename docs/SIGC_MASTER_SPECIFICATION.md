@@ -4543,7 +4543,7 @@ O SIGC será inicialmente desenvolvido como uma aplicação web interna.
 
 A arquitetura geral será:
 
-```text id="v6c3oj"
+```text
 ┌──────────────────────────────┐
 │      COMPUTADORES USUÁRIOS   │
 │                              │
@@ -4561,7 +4561,8 @@ A arquitetura geral será:
 │                              │
 │  Aplicação SIGC              │
 │  Python                      │
-│  Framework Web               │
+│  FastAPI                     │
+│  SQLAlchemy                  │
 │                              │
 │  Camada de Interface         │
 │  Camada de Serviços          │
@@ -4590,7 +4591,7 @@ O ambiente de desenvolvimento será utilizado para:
 
 A estrutura inicial será:
 
-```text id="qj8ft7"
+```text
 Computador do desenvolvedor
         │
         ├── Código do SIGC
@@ -4617,7 +4618,7 @@ O ambiente de produção será responsável por:
 
 A estrutura será:
 
-```text id="7pj6wq"
+```text
 Servidor Windows
         │
         ├── Aplicação SIGC
@@ -4635,7 +4636,7 @@ O servidor deverá executar a aplicação SIGC e disponibilizá-la para os compu
 
 O fluxo será:
 
-```text id="frj9qi"
+```text
 Usuário
    ↓
 Navegador
@@ -4749,7 +4750,7 @@ Exemplos:
 
 Uma operação deverá seguir, preferencialmente, o seguinte fluxo:
 
-```text id="1tkxpd"
+```text
 Usuário
    ↓
 Interface
@@ -4767,7 +4768,7 @@ Banco de dados
 
 Exemplo:
 
-```text id="z3a0ny"
+```text
 Usuário registra saída
         ↓
 Sistema recebe os dados
@@ -4797,7 +4798,7 @@ A aplicação deverá ser capaz de diferenciar ambientes.
 
 Exemplo:
 
-```text id="9jkl4k"
+```text
 development
     ↓
 sigc_dev.db
@@ -4817,7 +4818,7 @@ Os usuários não deverão acessar diretamente o arquivo físico do banco de dad
 
 O acesso deverá ocorrer exclusivamente através da aplicação SIGC.
 
-```text id="d5m78h"
+```text
 ❌ Usuário
    ↓
    sigc_prod.db
@@ -4936,6 +4937,23 @@ Dados de desenvolvimento e dados de produção deverão permanecer separados.
 ### RN-128 — Integridade arquitetural
 
 Novas funcionalidades deverão respeitar a separação entre interface, serviços, regras de negócio e persistência.
+
+---
+
+## 15.14 Tecnologias principais da aplicação
+
+A primeira versão do SIGC utilizará as seguintes tecnologias principais:
+
+| Componente             | Tecnologia |
+| ---------------------- | ---------- |
+| Linguagem principal    | Python     |
+| Framework web          | FastAPI    |
+| Persistência e ORM     | SQLAlchemy |
+| Banco de dados inicial | SQLite     |
+| Controle de versão     | Git        |
+| Repositório remoto     | GitHub     |
+
+A arquitetura deverá manter separadas as responsabilidades da aplicação, permitindo a evolução futura das tecnologias sem necessidade de reescrever integralmente as regras de negócio.
 
 ---
 
@@ -5741,7 +5759,7 @@ A aplicação deverá possuir uma estrutura de navegação centralizada.
 
 Exemplo:
 
-```text id="j6o6tq"
+```text
 ┌────────────────────────────────────────────┐
 │ LOGO / SIGC                 Usuário        │
 ├───────────────┬────────────────────────────┤
@@ -5803,7 +5821,7 @@ Os formulários deverão ser organizados por grupos lógicos.
 
 Exemplo:
 
-```text id="l8f6wz"
+```text
 Dados principais
 ────────────────────────
 
@@ -5844,7 +5862,7 @@ As ações principais deverão possuir destaque visual superior às ações secu
 
 Exemplo:
 
-```text id="k4h9u5"
+```text
 [Cancelar]                 [Registrar compra]
 ```
 
@@ -5854,7 +5872,7 @@ Ações destrutivas ou potencialmente perigosas deverão possuir confirmação.
 
 Exemplo:
 
-```text id="3q0b9d"
+```text
 Cancelar lançamento?
 
 Esta ação será registrada no histórico.
@@ -5872,7 +5890,7 @@ A cor não deverá ser o único meio de transmitir uma informação.
 
 Exemplo:
 
-```text id="k9i8rj"
+```text
 Status:
 [Ativo]
 [Cancelado]
@@ -5971,7 +5989,7 @@ Os registros deverão possuir estados claros quando aplicável.
 
 Exemplos:
 
-```text id="6d3j8y"
+```text
 ATIVO
 INATIVO
 PENDENTE
@@ -6759,7 +6777,7 @@ O ambiente de desenvolvimento e o ambiente de produção utilizarão bancos sepa
 
 Exemplo:
 
-```text id="8sck7j"
+```text
 Desenvolvimento:
 sigc_dev.db
 
@@ -7148,7 +7166,7 @@ Preservar a governança do projeto e evitar mudanças acidentais de regras de ne
 
 A arquitetura inicial do SIGC será:
 
-```text id="5y4l3e"
+```text
 DESENVOLVIMENTO
 
 Computador local
@@ -7166,7 +7184,7 @@ GitHub
 
 Posteriormente:
 
-```text id="c5dh2m"
+```text
 PRODUÇÃO
 
 Usuários
@@ -7186,7 +7204,7 @@ Backups
 
 E futuramente, se necessário:
 
-```text id="3ydjhr"
+```text
 EVOLUÇÃO
 
 Acesso remoto seguro
