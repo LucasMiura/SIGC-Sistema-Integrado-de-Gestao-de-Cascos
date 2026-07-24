@@ -5202,7 +5202,6 @@ Representa os itens de uma compra.
 | `part_id`            | INTEGER | Peça                  |
 | `quantity_purchased` | INTEGER | Quantidade comprada   |
 | `quantity_available` | INTEGER | Quantidade disponível |
-| `unit_price`         | NUMERIC | Valor unitário        |
 | `created_at`         | TEXT    | Data de criação       |
 
 A quantidade disponível deverá ser controlada pelo sistema.
@@ -7962,6 +7961,27 @@ Nenhuma decisão pendente deverá ser implementada de forma definitiva sem avali
 * Definido Python como linguagem principal.
 * Definido SQLite como banco de dados inicial.
 * Criada a estrutura inicial da especificação oficial.
+
+---
+
+### 2026-07-24 — Remoção do controle de preços
+
+O SIGC não deverá registrar preços, valores unitários ou custos financeiros relacionados às compras.
+
+O registro de compras será limitado às informações necessárias para o controle de cascos, incluindo:
+
+* Fornecedor;
+* Nota Fiscal de origem;
+* Data;
+* Peças controladas;
+* Quantidades;
+* Quantidades disponíveis;
+* Rastreabilidade das origens;
+* Regras de consumo FIFO.
+
+O campo `unit_price` foi removido da definição de `purchase_items`.
+
+O SIGC continuará fora do escopo de controle financeiro, formação de preços e controle de custos.
 
 ---
 

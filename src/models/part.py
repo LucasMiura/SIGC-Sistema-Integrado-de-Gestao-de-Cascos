@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,9 +38,12 @@ class Part(Base):
     created_at: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
+        default=lambda: datetime.now().isoformat(),
     )
 
     updated_at: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
+        default=lambda: datetime.now().isoformat(),
+        onupdate=lambda: datetime.now().isoformat(),
     )

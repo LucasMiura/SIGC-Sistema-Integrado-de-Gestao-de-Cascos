@@ -1,6 +1,6 @@
-from decimal import Decimal
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, Numeric, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.connection import Base
@@ -36,12 +36,8 @@ class PurchaseItem(Base):
         nullable=False,
     )
 
-    unit_price: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        nullable=False,
-    )
-
     created_at: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
+        default=lambda: datetime.now().isoformat(),
     )
