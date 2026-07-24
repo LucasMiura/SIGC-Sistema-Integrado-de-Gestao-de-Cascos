@@ -19,6 +19,15 @@ from src.models.outbound_item import OutboundItem
 from src.models.outbound_purchase_allocation import (
     OutboundPurchaseAllocation,
 )
+from src.models.customer_return import CustomerReturn
+from src.models.customer_return_allocation import (
+    CustomerReturnAllocation,
+)
+from src.models.customer_return_item import CustomerReturnItem
+from src.models.transfer import Transfer
+from src.models.transfer_item import TransferItem
+from src.models.core_movement import CoreMovement
+from src.models.audit_log import AuditLog
 
 config = context.config
 
