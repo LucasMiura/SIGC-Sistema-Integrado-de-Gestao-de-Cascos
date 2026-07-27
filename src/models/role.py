@@ -1,6 +1,7 @@
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.time import now_iso
 from src.database.connection import Base
 
 
@@ -22,7 +23,8 @@ class Role(Base):
         nullable=True,
     )
 
-    created_at: Mapped[str | None] = mapped_column(
+    created_at: Mapped[str] = mapped_column(
         String(30),
-        nullable=True,
+        nullable=False,
+        default=now_iso,
     )

@@ -1,6 +1,7 @@
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.time import now_iso
 from src.database.connection import Base
 
 
@@ -53,4 +54,5 @@ class SupplierContact(Base):
     created_at: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
+        default=now_iso,
     )

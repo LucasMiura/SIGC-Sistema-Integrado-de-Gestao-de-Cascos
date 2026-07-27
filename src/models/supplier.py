@@ -1,8 +1,7 @@
-from datetime import datetime
-
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.time import now_iso
 from src.database.connection import Base
 
 
@@ -43,12 +42,12 @@ class Supplier(Base):
     created_at: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
-        default=lambda: datetime.now().isoformat(),
+        default=now_iso,
     )
 
     updated_at: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
-        default=lambda: datetime.now().isoformat(),
-        onupdate=lambda: datetime.now().isoformat(),
+        default=now_iso,
+        onupdate=now_iso,
     )
