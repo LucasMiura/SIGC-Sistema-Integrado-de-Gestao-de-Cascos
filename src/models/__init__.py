@@ -4,6 +4,8 @@ from src.models.purchase_item import PurchaseItem
 from src.models.role import Role
 from src.models.supplier import Supplier
 from src.models.supplier_contact import SupplierContact
+from src.models.supplier_return import SupplierReturn
+from src.models.supplier_return_item import SupplierReturnItem
 from src.models.user import User
 from src.models.outbound import Outbound
 from src.models.outbound_item import OutboundItem
@@ -27,6 +29,8 @@ __all__ = [
     "Role",
     "Supplier",
     "SupplierContact",
+    "SupplierReturn",
+    "SupplierReturnItem",
     "User",
     "Outbound",
     "OutboundItem",
