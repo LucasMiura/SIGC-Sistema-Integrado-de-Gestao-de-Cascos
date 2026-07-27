@@ -25,6 +25,20 @@ class SupplierReturnItemRepository:
         )
 
         return self.session.scalar(statement)
+    
+    def get_by_supplier_return_and_purchase_item(
+        self,
+        supplier_return_id: int,
+        purchase_item_id: int,
+    ) -> SupplierReturnItem | None:
+        statement = select(SupplierReturnItem).where(
+            SupplierReturnItem.supplier_return_id
+            == supplier_return_id,
+            SupplierReturnItem.purchase_item_id
+            == purchase_item_id,
+        )
+
+        return self.session.scalar(statement)
 
     def list_by_supplier_return(
         self,

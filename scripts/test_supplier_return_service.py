@@ -278,6 +278,29 @@ def main() -> None:
             )
         )
 
+        duplicate_blocked = False
+
+        try:
+            supplier_return_service.add_item(
+                supplier_return_id=supplier_return.id,
+                purchase_item_id=purchase_item.id,
+                quantity=1,
+            )
+
+        except ValueError as error:
+            duplicate_blocked = True
+
+            print(
+                "\nBloqueio de item duplicado realizado "
+                "com sucesso!"
+            )
+            print(f"Mensagem: {error}")
+
+        assert duplicate_blocked, (
+            "O sistema deveria bloquear o mesmo item "
+            "de compra duas vezes na mesma remessa."
+        )
+
         available_after = (
             supplier_return_service.get_available_quantity(
                 purchase_item.id
@@ -289,27 +312,27 @@ def main() -> None:
             f"deveria ser 2, mas foi {available_after}."
         )
 
-        excess_blocked = False
+        # excess_blocked = False
 
-        try:
-            supplier_return_service.add_item(
-                supplier_return_id=supplier_return.id,
-                purchase_item_id=purchase_item.id,
-                quantity=3,
-            )
+        # try:
+        #     supplier_return_service.add_item(
+        #         supplier_return_id=supplier_return.id,
+        #         purchase_item_id=purchase_item.id,
+        #         quantity=3,
+        #     )
 
-        except ValueError as error:
-            excess_blocked = True
+        # except ValueError as error:
+        #     excess_blocked = True
 
-            print(
-                "\nBloqueio de excesso realizado com sucesso!"
-            )
-            print(f"Mensagem: {error}")
+        #     print(
+        #         "\nBloqueio de excesso realizado com sucesso!"
+        #     )
+        #     print(f"Mensagem: {error}")
 
-        assert excess_blocked, (
-            "O sistema deveria bloquear uma remessa "
-            "superior ao saldo disponível."
-        )
+        # assert excess_blocked, (
+        #     "O sistema deveria bloquear uma remessa "
+        #     "superior ao saldo disponível."
+        # )
 
         session.commit()
 

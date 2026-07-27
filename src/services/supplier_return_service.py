@@ -163,6 +163,20 @@ class SupplierReturnService:
                 "Item de compra não encontrado."
             )
 
+        existing_item = (
+            self.supplier_return_item_repository
+            .get_by_supplier_return_and_purchase_item(
+                supplier_return_id=supplier_return_id,
+                purchase_item_id=purchase_item_id,
+            )
+        )
+
+        if existing_item is not None:
+            raise ValueError(
+                "Este item de compra já foi adicionado "
+                "à remessa."
+            )
+
         purchase = self.purchase_repository.get_by_id(
             purchase_item.purchase_id
         )

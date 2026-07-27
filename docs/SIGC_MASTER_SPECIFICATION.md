@@ -11,8 +11,8 @@
 | Nome do sistema         | SIGC                                  |
 | Nome completo           | Sistema Integrado de Gestão de Cascos |
 | Autor                   | Lucas do Nascimento Miura             |
-| Status                  | Em fase de especificação              |
-| Versão da especificação | 1.0.0                                 |
+| Status                  | Em fase de implementação              |
+| Versão da especificação | 1.1.0                                 |
 | Data de criação         | 23/07/2026                            |
 | Plataforma inicial      | Aplicação Desktop                     |
 | Linguagem principal     | Python                                |
@@ -339,6 +339,32 @@ O registro deverá conter:
 A Nota Fiscal de Simples Remessa será emitida pela própria empresa para formalizar o envio dos cascos ao fornecedor e deverá conter as peças, as respectivas quantidades e a Nota Fiscal de compra de origem.
 
 O sistema deverá impedir que a quantidade devolvida seja superior à quantidade disponível para devolução.
+
+Cada item enviado ao fornecedor deverá manter vínculo com o item de compra de
+origem por meio do campo `purchase_item_id`.
+
+A utilização do `purchase_item_id` permitirá identificar:
+
+* A peça;
+* A Nota Fiscal de compra;
+* O fornecedor;
+* A quantidade adquirida;
+* A origem utilizada no consumo FIFO.
+
+A quantidade disponível para remessa ao fornecedor deverá ser calculada da
+seguinte forma:
+
+```text
+Quantidade devolvida pelos clientes atribuída ao item de compra
+− quantidade já remetida ao fornecedor para o item de compra
+= quantidade disponível para nova remessa
+```
+
+O sistema deverá permitir remessas parciais, mantendo o saldo restante
+disponível para remessas posteriores.
+
+O mesmo item de compra não deverá aparecer mais de uma vez na mesma operação
+de remessa ao fornecedor.
 
 ---
 
@@ -5379,21 +5405,53 @@ Também será possível realizar devoluções parciais de uma Nota Fiscal de com
 | `status`                  | TEXT    | Status                          |
 | `notes`                   | TEXT    | Observações                     |
 
+Uma remessa deverá pertencer a um único fornecedor.
+
+A Nota Fiscal de Simples Remessa será o documento emitido pela empresa para
+formalizar o envio dos cascos ao fornecedor.
+
+Uma remessa poderá ser realizada parcialmente.
+
+Todos os itens de uma mesma remessa deverão possuir origem na mesma Nota Fiscal
+de compra.
+
+Uma remessa não deverá conter o mesmo item de compra mais de uma vez.
+
 ---
 
 # 16.20 Tabela `supplier_return_items`
 
-Representa os itens enviados ao fornecedor.
+Representa os itens enviados ao fornecedor em uma remessa de cascos.
 
-| Campo                | Tipo    | Descrição             |
-| -------------------- | ------- | --------------------- |
-| `id`                 | INTEGER | Identificador         |
-| `supplier_return_id` | INTEGER | Devolução             |
-| `part_id`            | INTEGER | Peça                  |
-| `purchase_id`        | INTEGER | Nota Fiscal de origem |
-| `quantity`           | INTEGER | Quantidade devolvida  |
+| Campo                | Tipo    | Descrição                              |
+| -------------------- | ------- | -------------------------------------- |
+| `id`                 | INTEGER | Identificador                          |
+| `supplier_return_id` | INTEGER | Remessa ao fornecedor                  |
+| `purchase_item_id`   | INTEGER | Item de compra que representa a origem |
+| `quantity`           | INTEGER | Quantidade enviada ao fornecedor       |
+| `created_at`         | TEXT    | Data e hora de criação                 |
 
-O sistema não deverá permitir uma quantidade superior à quantidade disponível para devolução.
+O campo `purchase_item_id` deverá preservar a origem exata da quantidade
+enviada ao fornecedor.
+
+A partir do item de compra, o sistema poderá identificar:
+
+* A peça;
+* A compra;
+* A Nota Fiscal de compra;
+* O fornecedor;
+* A quantidade adquirida;
+* A origem utilizada no consumo FIFO.
+
+Os campos `part_id` e `purchase_id` não deverão ser armazenados nesta tabela,
+pois essas informações já poderão ser obtidas através do
+`purchase_item_id`.
+
+O sistema não deverá permitir uma quantidade superior à quantidade disponível
+para remessa ao fornecedor.
+
+O mesmo `purchase_item_id` não deverá ser adicionado mais de uma vez na mesma
+remessa.
 
 ---
 
@@ -6596,6 +6654,54 @@ Dados de produção deverão permanecer separados do código-fonte.
 ### RN-168 — Reprodutibilidade
 
 O projeto deverá possuir informações suficientes para permitir a reconstrução do ambiente de desenvolvimento.
+
+### RN-169 — Origem do item da remessa
+
+Cada item enviado ao fornecedor deverá manter vínculo com um
+`purchase_item_id`.
+
+Essa referência deverá preservar a peça, a compra, o fornecedor e a Nota Fiscal
+de origem.
+
+### RN-170 — Saldo disponível para remessa
+
+O sistema deverá permitir o envio ao fornecedor somente de quantidades que já
+tenham sido devolvidas pelos clientes e ainda não tenham sido remetidas.
+
+### RN-171 — Remessa parcial ao fornecedor
+
+O sistema deverá permitir que uma quantidade disponível seja remetida
+parcialmente ao fornecedor.
+
+O saldo restante deverá continuar disponível para uma remessa posterior.
+
+### RN-172 — Bloqueio de excesso na remessa
+
+O sistema deverá impedir que uma remessa contenha quantidade superior ao saldo
+disponível para o item de compra.
+
+A mensagem de erro deverá informar a quantidade máxima disponível.
+
+### RN-173 — Item duplicado na remessa
+
+O mesmo `purchase_item_id` não deverá aparecer mais de uma vez na mesma remessa
+ao fornecedor.
+
+### RN-174 — Fornecedor da remessa
+
+Todos os itens incluídos em uma remessa deverão pertencer ao fornecedor
+informado no cabeçalho da remessa.
+
+### RN-175 — Nota Fiscal de compra da remessa
+
+Todos os itens incluídos em uma mesma remessa deverão possuir origem na mesma
+Nota Fiscal de compra.
+
+### RN-176 — Distribuição FIFO das devoluções
+
+Quando uma saída tiver sido alocada em mais de um item de compra, as quantidades
+devolvidas pelo cliente deverão ser atribuídas às origens seguindo a mesma
+ordem FIFO utilizada na saída.
 
 ---
 
