@@ -1,4 +1,10 @@
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.time import now_iso
@@ -6,11 +12,27 @@ from src.database.connection import Base
 
 
 class Part(Base):
+    """Peça que possui obrigação de devolução de casco."""
+
     __tablename__ = "parts"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "supplier_id",
+            "part_code",
+            name="uq_parts_supplier_id_part_code",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
         autoincrement=True,
+    )
+
+    supplier_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("suppliers.id"),
+        nullable=False,
     )
 
     part_code: Mapped[str] = mapped_column(
@@ -26,6 +48,11 @@ class Part(Base):
     description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
+    )
+
+    return_deadline_days: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
     )
 
     is_active: Mapped[int] = mapped_column(

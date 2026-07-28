@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from src.api.routes import (
+    part_router,
     purchase_tracking_router,
     supplier_contact_router,
     supplier_router,
@@ -9,7 +10,9 @@ from src.api.routes import (
 
 app = FastAPI(
     title="SIGC",
-    description="Sistema Integrado de Gestão de Cascos",
+    description=(
+        "Sistema Integrado de Gestão de Cascos"
+    ),
     version="0.1.0",
 )
 
@@ -17,6 +20,7 @@ app = FastAPI(
 app.include_router(purchase_tracking_router)
 app.include_router(supplier_router)
 app.include_router(supplier_contact_router)
+app.include_router(part_router)
 
 
 @app.get(
@@ -25,7 +29,7 @@ app.include_router(supplier_contact_router)
     summary="Verificar funcionamento do sistema",
 )
 def root() -> dict[str, str]:
-    """Retorna informações básicas sobre a aplicação."""
+    """Retorna informações básicas da aplicação."""
 
     return {
         "sistema": "SIGC",
