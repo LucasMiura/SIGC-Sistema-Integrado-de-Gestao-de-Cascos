@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from src.api.routes import (
     purchase_tracking_router,
+    supplier_contact_router,
     supplier_router,
 )
 
@@ -15,6 +16,7 @@ app = FastAPI(
 
 app.include_router(purchase_tracking_router)
 app.include_router(supplier_router)
+app.include_router(supplier_contact_router)
 
 
 @app.get(
