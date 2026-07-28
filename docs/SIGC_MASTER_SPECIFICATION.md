@@ -14,7 +14,7 @@
 | Status                  | Em fase de implementação              |
 | Versão da especificação | 1.1.0                                 |
 | Data de criação         | 23/07/2026                            |
-| Plataforma inicial      | Aplicação Desktop                     |
+| Plataforma inicial      | Aplicação Web Interna                 |
 | Linguagem principal     | Python                                |
 | Banco de dados          | SQLite                                |
 | Escopo inicial          | Uma única filial                      |
@@ -33,15 +33,19 @@ Lucas do Nascimento Miura.
 
 ## 1.3 Descrição resumida
 
-O SIGC é um sistema desktop desenvolvido para controlar o ciclo de vida de cascos relacionados a peças de veículos pesados, especialmente caminhões, desde a aquisição da peça junto ao fornecedor até a devolução do casco ao fornecedor.
+O SIGC é uma aplicação web interna desenvolvida para controlar o ciclo de vida de cascos relacionados a peças de veículos pesados, especialmente caminhões, desde a aquisição da peça junto ao fornecedor até a devolução do casco ao fornecedor.
 
-O sistema será utilizado inicialmente por uma única filial de uma concessionária Volkswagen e funcionará de forma independente do sistema principal da empresa.
+O sistema será utilizado inicialmente por uma única filial de uma concessionária Volkswagen, funcionará de forma independente do sistema principal da empresa e será acessado pelos usuários por meio de navegadores conectados à rede interna.
+
+A aplicação será executada inicialmente em um servidor Windows da empresa, utilizando Python, FastAPI, SQLAlchemy e SQLite. Sua arquitetura deverá permitir futuras evoluções, incluindo a migração para um banco de dados cliente-servidor e a disponibilização de formas controladas de acesso remoto.
 
 ---
 
 # 2. Visão Geral
 
-O SIGC — Sistema Integrado de Gestão de Cascos é uma aplicação desktop desenvolvida para auxiliar no controle, rastreamento e gerenciamento do ciclo de vida de cascos relacionados a peças de veículos pesados, especialmente caminhões.
+O SIGC — Sistema Integrado de Gestão de Cascos é uma aplicação web interna desenvolvida para auxiliar no controle, rastreamento e gerenciamento do ciclo de vida de cascos relacionados a peças de veículos pesados, especialmente caminhões.
+
+A aplicação será executada de forma centralizada em um servidor Windows da empresa e será acessada pelos usuários por meio de navegadores conectados à rede interna. Essa estrutura permitirá centralizar as regras de negócio, o acesso ao banco de dados, a autenticação, a auditoria e a manutenção do sistema, sem exigir a instalação completa da aplicação em cada computador.
 
 O sistema será utilizado inicialmente em uma única filial de uma concessionária Volkswagen e funcionará de forma independente do sistema principal da empresa. Seu objetivo é complementar os processos existentes, concentrando exclusivamente as informações necessárias para o controle dos cascos que precisam ser devolvidos aos fornecedores.
 
@@ -638,11 +642,11 @@ O suporte completo a múltiplas filiais não fará parte do escopo inicial, embo
 
 ## 6.10 Aplicação Mobile
 
-A primeira versão do SIGC será desenvolvida como uma aplicação desktop.
+A primeira versão do SIGC será desenvolvida como uma aplicação web interna responsiva para utilização prioritária em computadores por meio de navegadores conectados à rede interna da empresa.
 
-Aplicações para dispositivos móveis não fazem parte do escopo inicial.
+O desenvolvimento de uma aplicação mobile nativa para Android ou iOS não faz parte do escopo inicial.
 
-Essa possibilidade poderá ser avaliada futuramente caso exista necessidade operacional.
+Embora determinadas telas possam futuramente ser adaptadas para acesso por navegadores em dispositivos móveis, essa possibilidade dependerá de avaliação de segurança, usabilidade e necessidade operacional.
 
 ---
 
@@ -7937,7 +7941,6 @@ Nenhuma decisão pendente deverá ser implementada de forma definitiva sem avali
 
 # 21. HISTÓRICO DE ALTERAÇÕES
 
-
 ### Revisão técnica da versão 1.1.0
 
 * Revisada a definição de backup da Seção 5.12.
@@ -7945,6 +7948,19 @@ Nenhuma decisão pendente deverá ser implementada de forma definitiva sem avali
 * Reforçada a necessidade de transações em operações críticas que alterem múltiplos registros relacionados.
 * Mantida a estratégia definitiva de backup como decisão pendente até a definição da infraestrutura de produção.
 * Revisada a coerência entre as seções de backup, arquitetura, banco de dados e decisões técnicas.
+
+---
+
+### 2026-07-28 — Consolidação da arquitetura web interna
+
+* Corrigida a identificação da plataforma inicial, anteriormente descrita incorretamente como aplicação desktop.
+* Consolidada a definição do SIGC como aplicação web interna.
+* Definido que a aplicação será executada centralmente em um servidor Windows da empresa.
+* Definido que os usuários acessarão o sistema por meio de navegadores conectados à rede interna.
+* Reforçado que os computadores dos usuários não deverão acessar diretamente o arquivo SQLite.
+* Consolidada a arquitetura em camadas formada por interface web, FastAPI, services, queries, repositories, SQLAlchemy e SQLite.
+* Mantida a aplicação mobile nativa fora do escopo inicial.
+* Mantida a possibilidade futura de migração do SQLite para PostgreSQL ou outro banco cliente-servidor.
 
 ---
 

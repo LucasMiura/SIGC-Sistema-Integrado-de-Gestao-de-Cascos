@@ -1,7 +1,12 @@
+from collections.abc import Generator
 from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Session,
+    sessionmaker,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -27,3 +32,19 @@ SessionLocal = sessionmaker(
 
 class Base(DeclarativeBase):
     pass
+
+
+def get_session() -> Generator[Session, None, None]:
+    """
+    Fornece uma sessão do banco para cada requisição da API.
+
+    A sessão é sempre fechada ao final da requisição,
+    mesmo quando ocorre algum erro.
+    """
+
+    session = SessionLocal()
+
+    try:
+        yield session
+    finally:
+        session.close()
