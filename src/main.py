@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 
 from src.api.routes import (
+    outbound_router,
     part_router,
+    purchase_router,
     purchase_tracking_router,
     supplier_contact_router,
     supplier_router,
@@ -17,25 +19,41 @@ app = FastAPI(
 )
 
 
-app.include_router(purchase_tracking_router)
-app.include_router(supplier_router)
-app.include_router(supplier_contact_router)
-app.include_router(part_router)
+app.include_router(
+    supplier_router
+)
+
+app.include_router(
+    supplier_contact_router
+)
+
+app.include_router(
+    part_router
+)
+
+app.include_router(
+    purchase_router
+)
+
+app.include_router(
+    purchase_tracking_router
+)
+
+app.include_router(
+    outbound_router
+)
 
 
 @app.get(
     "/",
-    tags=["Sistema"],
-    summary="Verificar funcionamento do sistema",
+    tags=["System"],
 )
 def root() -> dict[str, str]:
-    """Retorna informações básicas da aplicação."""
-
     return {
         "sistema": "SIGC",
         "mensagem": (
-            "Sistema Integrado de Gestão de Cascos "
-            "em funcionamento."
+            "Sistema Integrado de Gestão de "
+            "Cascos em funcionamento."
         ),
         "versao": "0.1.0",
     }
