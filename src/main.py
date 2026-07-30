@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from src.api.routes import (
+    customer_return_router,
     outbound_router,
     part_router,
     purchase_router,
@@ -41,6 +42,10 @@ app.include_router(
 
 app.include_router(
     outbound_router
+)
+
+app.include_router(
+    customer_return_router
 )
 
 

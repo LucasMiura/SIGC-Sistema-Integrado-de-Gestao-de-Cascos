@@ -1,4 +1,11 @@
+import sys
 from datetime import datetime
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.database.connection import SessionLocal
 from src.models.part import Part
@@ -42,132 +49,77 @@ def main() -> None:
     session = SessionLocal()
 
     try:
-        supplier_repository = SupplierRepository(session)
-        part_repository = PartRepository(session)
-        purchase_repository = PurchaseRepository(session)
-        purchase_item_repository = (
-            PurchaseItemRepository(session)
+        supplier_repository = SupplierRepository(
+            session
         )
 
-        outbound_repository = OutboundRepository(session)
-        outbound_item_repository = (
-            OutboundItemRepository(session)
+        part_repository = PartRepository(
+            session
         )
+
+        purchase_repository = PurchaseRepository(
+            session
+        )
+
+        purchase_item_repository = (
+            PurchaseItemRepository(
+                session
+            )
+        )
+
+        outbound_repository = OutboundRepository(
+            session
+        )
+
+        outbound_item_repository = (
+            OutboundItemRepository(
+                session
+            )
+        )
+
         outbound_purchase_allocation_repository = (
-            OutboundPurchaseAllocationRepository(session)
+            OutboundPurchaseAllocationRepository(
+                session
+            )
         )
 
         customer_return_repository = (
-            CustomerReturnRepository(session)
+            CustomerReturnRepository(
+                session
+            )
         )
+
         customer_return_item_repository = (
-            CustomerReturnItemRepository(session)
+            CustomerReturnItemRepository(
+                session
+            )
         )
+
         customer_return_allocation_repository = (
-            CustomerReturnAllocationRepository(session)
-        )
-
-        suppliers = supplier_repository.list_all()
-
-        if not suppliers:
-            supplier_entity = Supplier(
-                name="Fornecedor de Teste Devolucao",
-                document="00.000.000/0001-02",
-                address="Endereco de Teste",
-                notes=(
-                    "Registro criado para teste "
-                    "de devolucao de cliente."
-                ),
-                is_active=1,
+            CustomerReturnAllocationRepository(
+                session
             )
-
-            supplier_entity = supplier_repository.add(
-                supplier_entity
-            )
-        else:
-            supplier_entity = suppliers[0]
-
-        test_suffix = datetime.now().strftime(
-            "%Y%m%d%H%M%S"
-        )
-
-        part_entity = Part(
-            part_code=(
-                f"TEST-RETURN-{test_suffix}"
-            ),
-            name="Peca de Teste Devolucao",
-            description=(
-                "Peca criada exclusivamente para "
-                "teste de devolucao de cliente."
-            ),
-            is_active=1,
-        )
-
-        part_entity = part_repository.add(
-            part_entity
         )
 
         purchase_service = PurchaseService(
-            purchase_repository=purchase_repository,
+            purchase_repository=(
+                purchase_repository
+            ),
             purchase_item_repository=(
                 purchase_item_repository
             ),
-            supplier_repository=supplier_repository,
-            part_repository=part_repository,
-        )
-
-        first_purchase = (
-            purchase_service.create_purchase(
-                supplier_id=supplier_entity.id,
-                invoice_number=(
-                    f"NF-RETURN-001-{test_suffix}"
-                ),
-                invoice_series="1",
-                issue_date="2026-07-24",
-                created_by=1,
-                status="RECEIVED",
-                notes=(
-                    "Primeira compra criada para "
-                    "teste de devolucao."
-                ),
-            )
-        )
-
-        first_purchase_item = (
-            purchase_service.add_item(
-                purchase_id=first_purchase.id,
-                part_id=part_entity.id,
-                quantity_purchased=5,
-            )
-        )
-
-        second_purchase = (
-            purchase_service.create_purchase(
-                supplier_id=supplier_entity.id,
-                invoice_number=(
-                    f"NF-RETURN-002-{test_suffix}"
-                ),
-                invoice_series="1",
-                issue_date="2026-07-25",
-                created_by=1,
-                status="RECEIVED",
-                notes=(
-                    "Segunda compra criada para "
-                    "teste de devolucao."
-                ),
-            )
-        )
-
-        second_purchase_item = (
-            purchase_service.add_item(
-                purchase_id=second_purchase.id,
-                part_id=part_entity.id,
-                quantity_purchased=10,
-            )
+            supplier_repository=(
+                supplier_repository
+            ),
+            part_repository=(
+                part_repository
+            ),
         )
 
         outbound_service = OutboundService(
-            outbound_repository=outbound_repository,
+            outbound_repository=(
+                outbound_repository
+            ),
             outbound_item_repository=(
                 outbound_item_repository
             ),
@@ -177,64 +129,158 @@ def main() -> None:
             purchase_item_repository=(
                 purchase_item_repository
             ),
-            part_repository=part_repository,
-        )
-
-        outbound = outbound_service.create_outbound(
-            destination_type="WORKSHOP",
-            work_order_number=(
-                f"OS-RETURN-{test_suffix}"
+            part_repository=(
+                part_repository
             ),
+        )
+
+        customer_return_service = CustomerReturnService(
+            customer_return_repository=(
+                customer_return_repository
+            ),
+            customer_return_item_repository=(
+                customer_return_item_repository
+            ),
+            customer_return_allocation_repository=(
+                customer_return_allocation_repository
+            ),
+            outbound_repository=(
+                outbound_repository
+            ),
+            outbound_item_repository=(
+                outbound_item_repository
+            ),
+            part_repository=(
+                part_repository
+            ),
+        )
+
+        test_suffix = datetime.now().strftime(
+            "%Y%m%d%H%M%S%f"
+        )
+
+        suppliers = supplier_repository.list_all()
+
+        if suppliers:
+            supplier = suppliers[0]
+        else:
+            supplier = Supplier(
+                name=(
+                    "Fornecedor Teste "
+                    "Devolucao Cliente"
+                ),
+                document=(
+                    f"TEST-{test_suffix}"
+                ),
+                address=(
+                    "Endereco criado para teste."
+                ),
+                notes=(
+                    "Fornecedor criado para o teste "
+                    "manual de devolucao de cliente."
+                ),
+                is_active=1,
+            )
+
+            supplier = supplier_repository.add(
+                supplier
+            )
+
+        part = Part(
+            part_code=(
+                f"TEST-CUSTOMER-RETURN-{test_suffix}"
+            ),
+            name=(
+                "Peca Teste Devolucao Cliente"
+            ),
+            description=(
+                "Peca criada exclusivamente para "
+                "validar devolucoes vinculadas "
+                "a saida original."
+            ),
+            supplier_id=supplier.id,
+            return_deadline_days=90,
+            is_active=1,
+        )
+
+        part = part_repository.add(
+            part
+        )
+
+        purchase = purchase_service.create_purchase(
+            supplier_id=supplier.id,
+            invoice_number=(
+                f"NFC-{test_suffix}"
+            ),
+            invoice_series="1",
+            issue_date="2026-07-30",
             created_by=1,
-            status="COMPLETED",
+            status="RECEIVED",
+            notes=(
+                "Compra criada para o teste manual "
+                "de devolucao de cliente."
+            ),
         )
 
-        outbound_item = outbound_service.add_item(
-            outbound_id=outbound.id,
-            part_id=part_entity.id,
-            quantity=8,
+        purchase_item = purchase_service.add_item(
+            purchase_id=purchase.id,
+            part_id=part.id,
+            quantity_purchased=10,
         )
 
-        outbound_allocations = (
-            outbound_purchase_allocation_repository
-            .list_by_outbound_item(
-                outbound_item.id
+        first_outbound = (
+            outbound_service.create_outbound(
+                destination_type="WORK_ORDER",
+                work_order_number=(
+                    f"OS-A-{test_suffix}"
+                ),
+                created_by=1,
+                status="ACTIVE",
             )
         )
 
-        customer_return_service = (
-            CustomerReturnService(
-                customer_return_repository=(
-                    customer_return_repository
+        first_outbound_item = (
+            outbound_service.add_item(
+                outbound_id=first_outbound.id,
+                part_id=part.id,
+                quantity=5,
+            )
+        )
+
+        second_outbound = (
+            outbound_service.create_outbound(
+                destination_type="WORK_ORDER",
+                work_order_number=(
+                    f"OS-B-{test_suffix}"
                 ),
-                customer_return_item_repository=(
-                    customer_return_item_repository
-                ),
-                customer_return_allocation_repository=(
-                    customer_return_allocation_repository
-                ),
-                outbound_item_repository=(
-                    outbound_item_repository
-                ),
-                part_repository=part_repository,
+                created_by=1,
+                status="ACTIVE",
+            )
+        )
+
+        second_outbound_item = (
+            outbound_service.add_item(
+                outbound_id=second_outbound.id,
+                part_id=part.id,
+                quantity=5,
             )
         )
 
         customer_return = (
             customer_return_service
             .create_customer_return(
-                return_type="CUSTOMER",
+                return_type="WORK_ORDER",
                 reference_number=(
-                    f"DEV-RETURN-{test_suffix}"
+                    second_outbound.work_order_number
                 ),
                 customer_name=(
-                    "Cliente de Teste"
+                    "Cliente da segunda saida"
                 ),
                 created_by=1,
-                status="COMPLETED",
+                status="ACTIVE",
                 notes=(
-                    "Devolucao criada para teste "
-                    "de rastreabilidade."
+                    "Devolucao parcial vinculada "
+                    "a segunda saida."
                 ),
             )
         )
@@ -244,8 +290,8 @@ def main() -> None:
                 customer_return_id=(
                     customer_return.id
                 ),
-                part_id=part_entity.id,
-                quantity=6,
+                part_id=part.id,
+                quantity=3,
             )
         )
 
@@ -256,88 +302,134 @@ def main() -> None:
             )
         )
 
-        session.commit()
-
-        print(
-            "Devolucao de cliente criada "
-            "com sucesso!"
+        assert customer_return.return_type == (
+            "WORK_ORDER"
         )
 
-        print(
-            f"ID da devolucao: "
-            f"{customer_return.id}"
+        assert customer_return.reference_number == (
+            second_outbound.work_order_number
         )
 
-        print(
-            f"ID do item devolvido: "
-            f"{customer_return_item.id}"
+        assert customer_return_item.quantity == 3
+
+        assert len(return_allocations) == 1, (
+            "A devolucao deveria possuir exatamente "
+            "uma alocacao."
         )
 
-        print(
-            f"Quantidade devolvida: "
-            f"{customer_return_item.quantity}"
+        return_allocation = return_allocations[0]
+
+        assert (
+            return_allocation.outbound_item_id
+            == second_outbound_item.id
+        ), (
+            "A devolucao foi vinculada a um item "
+            "de saida incorreto."
         )
 
-        print()
-        print(
-            "Alocacoes da saida:"
+        assert (
+            return_allocation.outbound_item_id
+            != first_outbound_item.id
+        ), (
+            "A devolucao utilizou indevidamente "
+            "a primeira saida."
         )
 
-        for allocation in outbound_allocations:
-            print(
-                f"- PurchaseItem "
-                f"{allocation.purchase_item_id}: "
-                f"{allocation.quantity_allocated} "
-                "unidade(s)"
+        assert (
+            return_allocation.quantity_allocated
+            == 3
+        )
+
+        try:
+            customer_return_service.add_item(
+                customer_return_id=(
+                    customer_return.id
+                ),
+                part_id=part.id,
+                quantity=3,
+            )
+        except ValueError as error:
+            assert str(error) == (
+                "A quantidade devolvida é superior "
+                "à quantidade pendente da saída original."
+            )
+        else:
+            raise AssertionError(
+                "O sistema permitiu devolver uma "
+                "quantidade superior ao saldo pendente."
             )
 
-        print()
-        print(
-            "Alocacoes da devolucao:"
-        )
-
-        for allocation in return_allocations:
-            print(
-                f"- OutboundItem "
-                f"{allocation.outbound_item_id}: "
-                f"{allocation.quantity_allocated} "
-                "unidade(s)"
+        customer_return_items = (
+            customer_return_service
+            .list_customer_return_items(
+                customer_return.id
             )
+        )
+
+        assert len(customer_return_items) == 1, (
+            "A tentativa inválida não deveria criar "
+            "um novo item de devolucao."
+        )
+
+        assert purchase_item.quantity_available == 0
 
         print()
         print(
-            "Resultado esperado:"
-        )
-
-        print(
-            "- Saida de 8 unidades criada."
-        )
-
-        print(
-            "- Devolucao de 6 unidades criada."
-        )
-
-        print(
-            "- As 6 unidades foram vinculadas "
-            "ao OutboundItem da saida."
+            "Teste de devolucao de cliente "
+            "concluido com sucesso!"
         )
 
         print()
+        print("Compra:")
         print(
-            "Quantidade disponivel das compras "
-            "apos a saida:"
+            f"- PurchaseItem {purchase_item.id}: "
+            "10 unidades"
         )
 
+        print()
+        print("Saidas com a mesma peca:")
         print(
-            f"- PurchaseItem "
-            f"{first_purchase_item.id}: "
-            f"{first_purchase_item.quantity_available}"
+            f"- Primeira saida "
+            f"{first_outbound.work_order_number}: "
+            "5 unidades"
+        )
+        print(
+            f"- Segunda saida "
+            f"{second_outbound.work_order_number}: "
+            "5 unidades"
         )
 
+        print()
+        print("Devolucao:")
         print(
-            f"- PurchaseItem "
-            f"{second_purchase_item.id}: "
-            f"{second_purchase_item.quantity_available}"
+            "- Referencia utilizada: "
+            f"{customer_return.reference_number}"
+        )
+        print("- Quantidade devolvida: 3 unidades")
+        print(
+            "- OutboundItem vinculado: "
+            f"{return_allocation.outbound_item_id}"
+        )
+
+        print()
+        print("Validacoes confirmadas:")
+        print(
+            "- A devolucao foi vinculada somente "
+            "a segunda saida."
+        )
+        print(
+            "- A primeira saida nao foi utilizada."
+        )
+        print(
+            "- A devolucao parcial foi aceita."
+        )
+        print(
+            "- A devolucao superior ao saldo "
+            "pendente foi bloqueada."
+        )
+        print(
+            "- A tentativa invalida nao criou "
+            "um novo item."
         )
 
     except Exception:
@@ -345,7 +437,9 @@ def main() -> None:
         raise
 
     finally:
+        session.rollback()
         session.close()
+
 
 if __name__ == "__main__":
     main()
