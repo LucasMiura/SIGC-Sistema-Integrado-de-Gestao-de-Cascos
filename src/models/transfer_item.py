@@ -28,3 +28,13 @@ class TransferItem(Base):
         Integer,
         nullable=False,
     )
+
+    quantity_available: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    return_deadline_days: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )

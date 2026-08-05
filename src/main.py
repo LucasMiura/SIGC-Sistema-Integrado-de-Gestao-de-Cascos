@@ -7,8 +7,9 @@ from src.api.routes import (
     purchase_router,
     purchase_tracking_router,
     supplier_contact_router,
-    supplier_router,
     supplier_return_router,
+    supplier_router,
+    transfer_router,
 )
 
 
@@ -51,6 +52,10 @@ app.include_router(
 
 app.include_router(
     supplier_return_router
+)
+
+app.include_router(
+    transfer_router
 )
 
 
