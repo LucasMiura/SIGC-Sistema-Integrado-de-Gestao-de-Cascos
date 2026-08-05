@@ -95,7 +95,7 @@ O sistema deverá proporcionar maior visibilidade sobre os cascos pendentes, fac
 
 ## 4.1 Objetivo Geral
 
-Desenvolver um sistema desktop especializado no controle e rastreamento do ciclo de vida de cascos relacionados a peças de veículos pesados, permitindo acompanhar as etapas desde a aquisição da peça junto ao fornecedor até a devolução final do casco, com controle de prazos, quantidades, origem, movimentações, devoluções e histórico das operações.
+Desenvolver uma aplicação web interna especializada no controle e rastreamento do ciclo de vida de cascos relacionados a peças de veículos pesados, permitindo acompanhar as etapas desde a aquisição da peça junto ao fornecedor até a devolução final do casco, com controle de prazos, quantidades, origem, movimentações, devoluções e histórico das operações.
 
 O SIGC deverá centralizar as informações necessárias para o controle de cascos em um sistema independente do sistema principal da empresa, proporcionando maior organização, rastreabilidade, segurança das informações e visibilidade sobre as obrigações de devolução.
 

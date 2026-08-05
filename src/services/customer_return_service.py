@@ -372,6 +372,7 @@ class CustomerReturnService:
                     normalized_reference_number
                 )
             )
+
         elif normalized_return_type == "SALE":
             outbound = (
                 self.outbound_repository
@@ -379,6 +380,7 @@ class CustomerReturnService:
                     normalized_reference_number
                 )
             )
+
         else:
             raise ValueError(
                 "O tipo de devolução deve ser "
@@ -390,8 +392,9 @@ class CustomerReturnService:
                 "Saída original não encontrada."
             )
 
-        if outbound.destination_type != (
-            normalized_return_type
+        if (
+            outbound.destination_type
+            != normalized_return_type
         ):
             raise ValueError(
                 "A referência informada não corresponde "

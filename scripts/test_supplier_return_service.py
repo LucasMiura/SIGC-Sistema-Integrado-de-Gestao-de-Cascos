@@ -1,3 +1,12 @@
+import sys
+from datetime import datetime
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from datetime import datetime
 
 from src.database.connection import SessionLocal
@@ -109,6 +118,7 @@ def main() -> None:
         )
 
         part_entity = Part(
+            supplier_id=supplier_entity.id,
             part_code=(
                 f"TEST-SUPPLIER-RETURN-{test_suffix}"
             ),
@@ -117,6 +127,7 @@ def main() -> None:
                 "Peca criada exclusivamente para teste "
                 "de remessa ao fornecedor."
             ),
+            return_deadline_days=90,
             is_active=1,
         )
 
@@ -157,6 +168,7 @@ def main() -> None:
             customer_return_allocation_repository=(
                 customer_return_allocation_repository
             ),
+            outbound_repository=outbound_repository,
             outbound_item_repository=(
                 outbound_item_repository
             ),
@@ -205,7 +217,7 @@ def main() -> None:
         )
 
         outbound = outbound_service.create_outbound(
-            destination_type="WORKSHOP",
+            destination_type="WORK_ORDER",
             work_order_number=(
                 f"OS-SR-{test_suffix}"
             ),
@@ -221,7 +233,7 @@ def main() -> None:
 
         customer_return = (
             customer_return_service.create_customer_return(
-                return_type="WORKSHOP",
+                return_type="WORK_ORDER",
                 reference_number=(
                     f"OS-SR-{test_suffix}"
                 ),

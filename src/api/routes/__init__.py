@@ -21,6 +21,9 @@ from src.api.routes.supplier_route import (
 from src.api.routes.customer_return_route import (
     router as customer_return_router,
 )
+from src.api.routes.supplier_return_route import (
+    router as supplier_return_router,
+)
 
 
 __all__ = [
@@ -31,4 +34,5 @@ __all__ = [
     "purchase_tracking_router",
     "supplier_contact_router",
     "supplier_router",
+    "supplier_return_router",
 ]

@@ -1,5 +1,7 @@
 from src.models.supplier_return import SupplierReturn
-from src.models.supplier_return_item import SupplierReturnItem
+from src.models.supplier_return_item import (
+    SupplierReturnItem,
+)
 from src.repositories.customer_return_allocation_repository import (
     CustomerReturnAllocationRepository,
 )
@@ -24,24 +26,36 @@ from src.repositories.supplier_return_repository import (
 
 
 class SupplierReturnService:
-    """Regras de negócio das remessas de cascos aos fornecedores."""
+    """
+    Regras de negócio relacionadas às remessas
+    de cascos aos fornecedores.
+    """
+
+    ALLOWED_STATUSES = {
+        "ACTIVE",
+        "CANCELLED",
+    }
 
     def __init__(
         self,
-        supplier_return_repository: SupplierReturnRepository,
+        supplier_return_repository: (
+            SupplierReturnRepository
+        ),
         supplier_return_item_repository: (
             SupplierReturnItemRepository
         ),
         supplier_repository: SupplierRepository,
         purchase_repository: PurchaseRepository,
-        purchase_item_repository: PurchaseItemRepository,
+        purchase_item_repository: (
+            PurchaseItemRepository
+        ),
         outbound_purchase_allocation_repository: (
             OutboundPurchaseAllocationRepository
         ),
         customer_return_allocation_repository: (
             CustomerReturnAllocationRepository
         ),
-    ):
+    ) -> None:
         self.supplier_return_repository = (
             supplier_return_repository
         )
@@ -50,8 +64,13 @@ class SupplierReturnService:
             supplier_return_item_repository
         )
 
-        self.supplier_repository = supplier_repository
-        self.purchase_repository = purchase_repository
+        self.supplier_repository = (
+            supplier_repository
+        )
+
+        self.purchase_repository = (
+            purchase_repository
+        )
 
         self.purchase_item_repository = (
             purchase_item_repository
@@ -69,12 +88,65 @@ class SupplierReturnService:
         self,
         supplier_id: int,
         dispatch_invoice_number: str,
-        dispatch_invoice_series: str | None,
         issue_date: str,
         created_by: int,
+        dispatch_invoice_series: str | None = None,
         status: str = "ACTIVE",
         notes: str | None = None,
     ) -> SupplierReturn:
+        if supplier_id <= 0:
+            raise ValueError(
+                "O identificador do fornecedor deve ser "
+                "maior que zero."
+            )
+
+        if created_by <= 0:
+            raise ValueError(
+                "O identificador do usuário deve ser "
+                "maior que zero."
+            )
+
+        normalized_invoice_number = (
+            self._normalize_required_text(
+                dispatch_invoice_number,
+                (
+                    "O número da Nota Fiscal de Simples "
+                    "Remessa é obrigatório."
+                ),
+            )
+        )
+
+        normalized_issue_date = (
+            self._normalize_required_text(
+                issue_date,
+                "A data de emissão é obrigatória.",
+            )
+        )
+
+        normalized_series = (
+            self._normalize_optional_text(
+                dispatch_invoice_series
+            )
+        )
+
+        normalized_status = (
+            self._normalize_status(
+                status
+            )
+        )
+
+        normalized_notes = (
+            self._normalize_optional_text(
+                notes
+            )
+        )
+
+        if normalized_status == "CANCELLED":
+            raise ValueError(
+                "Uma remessa ao fornecedor não pode ser "
+                "criada já cancelada."
+            )
+
         supplier = self.supplier_repository.get_by_id(
             supplier_id
         )
@@ -84,19 +156,9 @@ class SupplierReturnService:
                 "Fornecedor não encontrado."
             )
 
-        normalized_invoice_number = (
-            dispatch_invoice_number.strip()
-        )
-
-        if not normalized_invoice_number:
+        if not supplier.is_active:
             raise ValueError(
-                "O número da Nota Fiscal de Simples "
-                "Remessa é obrigatório."
-            )
-
-        if not issue_date.strip():
-            raise ValueError(
-                "A data da remessa é obrigatória."
+                "O fornecedor informado está inativo."
             )
 
         existing_supplier_return = (
@@ -108,15 +170,8 @@ class SupplierReturnService:
 
         if existing_supplier_return is not None:
             raise ValueError(
-                "Já existe uma remessa cadastrada com "
-                "este número de Nota Fiscal."
-            )
-
-        normalized_series = None
-
-        if dispatch_invoice_series is not None:
-            normalized_series = (
-                dispatch_invoice_series.strip() or None
+                "Já existe uma remessa cadastrada com esse "
+                "número de Nota Fiscal de Simples Remessa."
             )
 
         supplier_return = SupplierReturn(
@@ -124,11 +179,13 @@ class SupplierReturnService:
             dispatch_invoice_number=(
                 normalized_invoice_number
             ),
-            dispatch_invoice_series=normalized_series,
-            issue_date=issue_date.strip(),
+            dispatch_invoice_series=(
+                normalized_series
+            ),
+            issue_date=normalized_issue_date,
             created_by=created_by,
-            status=status.strip() or "ACTIVE",
-            notes=notes,
+            status=normalized_status,
+            notes=normalized_notes,
         )
 
         return self.supplier_return_repository.add(
@@ -141,15 +198,34 @@ class SupplierReturnService:
         purchase_item_id: int,
         quantity: int,
     ) -> SupplierReturnItem:
+        if supplier_return_id <= 0:
+            raise ValueError(
+                "O identificador da remessa deve ser "
+                "maior que zero."
+            )
+
+        if purchase_item_id <= 0:
+            raise ValueError(
+                "O identificador do item de compra deve ser "
+                "maior que zero."
+            )
+
+        if quantity <= 0:
+            raise ValueError(
+                "A quantidade remetida deve ser "
+                "maior que zero."
+            )
+
         supplier_return = (
-            self.supplier_return_repository.get_by_id(
+            self.get_supplier_return(
                 supplier_return_id
             )
         )
 
-        if supplier_return is None:
+        if supplier_return.status != "ACTIVE":
             raise ValueError(
-                "Remessa ao fornecedor não encontrada."
+                "Não é possível adicionar itens a uma "
+                "remessa que não está ativa."
             )
 
         purchase_item = (
@@ -161,6 +237,24 @@ class SupplierReturnService:
         if purchase_item is None:
             raise ValueError(
                 "Item de compra não encontrado."
+            )
+
+        purchase = self.purchase_repository.get_by_id(
+            purchase_item.purchase_id
+        )
+
+        if purchase is None:
+            raise ValueError(
+                "Compra de origem não encontrada."
+            )
+
+        if (
+            purchase.supplier_id
+            != supplier_return.supplier_id
+        ):
+            raise ValueError(
+                "O item de compra não pertence ao "
+                "fornecedor da remessa."
             )
 
         existing_item = (
@@ -177,26 +271,6 @@ class SupplierReturnService:
                 "à remessa."
             )
 
-        purchase = self.purchase_repository.get_by_id(
-            purchase_item.purchase_id
-        )
-
-        if purchase is None:
-            raise ValueError(
-                "Compra de origem não encontrada."
-            )
-
-        if purchase.supplier_id != supplier_return.supplier_id:
-            raise ValueError(
-                "O item de compra não pertence ao fornecedor "
-                "da remessa."
-            )
-
-        if quantity <= 0:
-            raise ValueError(
-                "A quantidade remetida deve ser maior que zero."
-            )
-
         self._validate_same_purchase(
             supplier_return_id=supplier_return_id,
             purchase_id=purchase.id,
@@ -207,6 +281,12 @@ class SupplierReturnService:
                 purchase_item_id
             )
         )
+
+        if available_quantity <= 0:
+            raise ValueError(
+                "Não existe quantidade disponível para "
+                "remessa neste item de compra."
+            )
 
         if quantity > available_quantity:
             raise ValueError(
@@ -222,14 +302,22 @@ class SupplierReturnService:
             quantity=quantity,
         )
 
-        return self.supplier_return_item_repository.add(
-            supplier_return_item
+        return (
+            self.supplier_return_item_repository.add(
+                supplier_return_item
+            )
         )
 
     def get_available_quantity(
         self,
         purchase_item_id: int,
     ) -> int:
+        if purchase_item_id <= 0:
+            raise ValueError(
+                "O identificador do item de compra deve ser "
+                "maior que zero."
+            )
+
         purchase_item = (
             self.purchase_item_repository.get_by_id(
                 purchase_item_id
@@ -241,7 +329,7 @@ class SupplierReturnService:
                 "Item de compra não encontrado."
             )
 
-        received_quantity = (
+        customer_returned_quantity = (
             self._get_customer_returned_quantity(
                 purchase_item_id
             )
@@ -255,16 +343,25 @@ class SupplierReturnService:
         )
 
         available_quantity = (
-            received_quantity
+            customer_returned_quantity
             - already_dispatched_quantity
         )
 
-        return max(available_quantity, 0)
+        return max(
+            available_quantity,
+            0,
+        )
 
     def get_supplier_return(
         self,
         supplier_return_id: int,
     ) -> SupplierReturn:
+        if supplier_return_id <= 0:
+            raise ValueError(
+                "O identificador da remessa deve ser "
+                "maior que zero."
+            )
+
         supplier_return = (
             self.supplier_return_repository.get_by_id(
                 supplier_return_id
@@ -281,7 +378,9 @@ class SupplierReturnService:
     def list_supplier_returns(
         self,
     ) -> list[SupplierReturn]:
-        return self.supplier_return_repository.list_all()
+        return (
+            self.supplier_return_repository.list_all()
+        )
 
     def list_items(
         self,
@@ -303,12 +402,16 @@ class SupplierReturnService:
         purchase_item_id: int,
     ) -> int:
         """
-        Calcula quantos cascos já retornaram dos clientes
-        para uma origem específica de compra.
+        Calcula quantos cascos devolvidos pelos clientes
+        pertencem a um item específico de compra.
 
-        A devolução do cliente está ligada ao OutboundItem.
-        Portanto, a quantidade devolvida é redistribuída
-        sobre as origens FIFO daquele OutboundItem.
+        A devolução do cliente está vinculada ao item da
+        saída. Cada item da saída pode ter sido consumido
+        de um ou mais itens de compra por meio do FIFO.
+
+        As quantidades devolvidas são redistribuídas sobre
+        as alocações FIFO da saída, preservando a ordem
+        original dessas alocações.
         """
 
         target_allocations = (
@@ -318,13 +421,14 @@ class SupplierReturnService:
             )
         )
 
+        outbound_item_ids = {
+            allocation.outbound_item_id
+            for allocation in target_allocations
+        }
+
         total_returned_for_purchase_item = 0
 
-        for target_allocation in target_allocations:
-            outbound_item_id = (
-                target_allocation.outbound_item_id
-            )
-
+        for outbound_item_id in outbound_item_ids:
             outbound_allocations = (
                 self.outbound_purchase_allocation_repository
                 .list_by_outbound_item(
@@ -345,25 +449,30 @@ class SupplierReturnService:
                 in customer_return_allocations
             )
 
-            for outbound_allocation in outbound_allocations:
+            for outbound_allocation in (
+                outbound_allocations
+            ):
                 if remaining_returned_quantity <= 0:
                     break
 
-                quantity_returned_for_allocation = min(
+                returned_for_allocation = min(
                     remaining_returned_quantity,
-                    outbound_allocation.quantity_allocated,
+                    (
+                        outbound_allocation
+                        .quantity_allocated
+                    ),
                 )
 
                 if (
-                    outbound_allocation.id
-                    == target_allocation.id
+                    outbound_allocation.purchase_item_id
+                    == purchase_item_id
                 ):
                     total_returned_for_purchase_item += (
-                        quantity_returned_for_allocation
+                        returned_for_allocation
                     )
 
                 remaining_returned_quantity -= (
-                    quantity_returned_for_allocation
+                    returned_for_allocation
                 )
 
         return total_returned_for_purchase_item
@@ -389,12 +498,64 @@ class SupplierReturnService:
 
             if existing_purchase_item is None:
                 raise ValueError(
-                    "Um item existente da remessa possui "
-                    "origem de compra inválida."
+                    "Um item já cadastrado na remessa não "
+                    "possui uma origem de compra válida."
                 )
 
-            if existing_purchase_item.purchase_id != purchase_id:
+            if (
+                existing_purchase_item.purchase_id
+                != purchase_id
+            ):
                 raise ValueError(
-                    "Todos os itens de uma remessa devem "
-                    "pertencer à mesma Nota Fiscal de compra."
+                    "Todos os itens da remessa devem "
+                    "pertencer à mesma Nota Fiscal "
+                    "de compra."
                 )
+
+    def _normalize_status(
+        self,
+        status: str,
+    ) -> str:
+        normalized_status = (
+            self._normalize_required_text(
+                status,
+                "O status da remessa é obrigatório.",
+            )
+            .upper()
+        )
+
+        if (
+            normalized_status
+            not in self.ALLOWED_STATUSES
+        ):
+            raise ValueError(
+                "O status da remessa deve ser "
+                "ACTIVE ou CANCELLED."
+            )
+
+        return normalized_status
+
+    @staticmethod
+    def _normalize_required_text(
+        value: str,
+        error_message: str,
+    ) -> str:
+        normalized_value = value.strip()
+
+        if not normalized_value:
+            raise ValueError(
+                error_message
+            )
+
+        return normalized_value
+
+    @staticmethod
+    def _normalize_optional_text(
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized_value = value.strip()
+
+        return normalized_value or None

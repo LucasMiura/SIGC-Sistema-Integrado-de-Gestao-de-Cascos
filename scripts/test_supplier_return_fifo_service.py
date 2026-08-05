@@ -1,3 +1,12 @@
+import sys
+from datetime import datetime
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from datetime import datetime
 
 from src.database.connection import SessionLocal
@@ -97,9 +106,11 @@ def main() -> None:
         suffix = datetime.now().strftime("%Y%m%d%H%M%S%f")
 
         part = Part(
+            supplier_id=supplier.id,
             part_code=f"TEST-SR-FIFO-{suffix}",
             name="Peca Teste FIFO Remessa",
             description="Peca criada para teste FIFO de remessa.",
+            return_deadline_days=90,
             is_active=1,
         )
 
@@ -123,14 +134,19 @@ def main() -> None:
         )
 
         customer_return_service = CustomerReturnService(
-            customer_return_repository=customer_return_repository,
+            customer_return_repository=(
+                customer_return_repository
+            ),
             customer_return_item_repository=(
                 customer_return_item_repository
             ),
             customer_return_allocation_repository=(
                 customer_return_allocation_repository
             ),
-            outbound_item_repository=outbound_item_repository,
+            outbound_repository=outbound_repository,
+            outbound_item_repository=(
+                outbound_item_repository
+            ),
             part_repository=part_repository,
         )
 
@@ -183,7 +199,7 @@ def main() -> None:
         )
 
         outbound = outbound_service.create_outbound(
-            destination_type="WORKSHOP",
+            destination_type="WORK_ORDER",
             work_order_number=f"OS-FIFO-{suffix}",
             created_by=1,
             status="ACTIVE",
@@ -197,7 +213,7 @@ def main() -> None:
 
         customer_return = (
             customer_return_service.create_customer_return(
-                return_type="WORKSHOP",
+                return_type="WORK_ORDER",
                 reference_number=f"OS-FIFO-{suffix}",
                 customer_name="Cliente Teste FIFO",
                 created_by=1,
