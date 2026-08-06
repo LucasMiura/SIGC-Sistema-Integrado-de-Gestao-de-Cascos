@@ -4,12 +4,35 @@ from unittest.mock import Mock
 import pytest
 
 from src.models.outbound import Outbound
+from src.repositories.outbound_item_repository import (
+    OutboundItemRepository,
+)
+from src.repositories.outbound_purchase_allocation_repository import (
+    OutboundPurchaseAllocationRepository,
+)
+from src.repositories.outbound_repository import (
+    OutboundRepository,
+)
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
+from src.repositories.part_repository import (
+    PartRepository,
+)
+from src.repositories.purchase_item_repository import (
+    PurchaseItemRepository,
+)
+from src.repositories.transfer_item_repository import (
+    TransferItemRepository,
+)
 from src.services.outbound_service import OutboundService
 
 
 @pytest.fixture
 def outbound_repository() -> Mock:
-    repository = Mock()
+    repository = Mock(
+        spec=OutboundRepository,
+    )
 
     repository.add.side_effect = (
         lambda outbound: outbound
@@ -24,7 +47,9 @@ def outbound_repository() -> Mock:
 
 @pytest.fixture
 def outbound_item_repository() -> Mock:
-    repository = Mock()
+    repository = Mock(
+        spec=OutboundItemRepository,
+    )
 
     repository.add.side_effect = (
         lambda outbound_item: outbound_item
@@ -35,7 +60,34 @@ def outbound_item_repository() -> Mock:
 
 @pytest.fixture
 def allocation_repository() -> Mock:
-    repository = Mock()
+    """
+    Mantém o nome utilizado pelos testes existentes.
+
+    Esta fixture representa as alocações originadas
+    de itens de compra.
+    """
+
+    repository = Mock(
+        spec=OutboundPurchaseAllocationRepository,
+    )
+
+    repository.add.side_effect = (
+        lambda allocation: allocation
+    )
+
+    return repository
+
+
+@pytest.fixture
+def transfer_allocation_repository() -> Mock:
+    """
+    Representa as alocações originadas
+    de itens recebidos por transferência.
+    """
+
+    repository = Mock(
+        spec=OutboundTransferAllocationRepository,
+    )
 
     repository.add.side_effect = (
         lambda allocation: allocation
@@ -46,12 +98,31 @@ def allocation_repository() -> Mock:
 
 @pytest.fixture
 def purchase_item_repository() -> Mock:
-    return Mock()
+    repository = Mock(
+        spec=PurchaseItemRepository,
+    )
+
+    repository.list_available_by_part.return_value = []
+
+    return repository
+
+
+@pytest.fixture
+def transfer_item_repository() -> Mock:
+    repository = Mock(
+        spec=TransferItemRepository,
+    )
+
+    repository.list_available_by_part.return_value = []
+
+    return repository
 
 
 @pytest.fixture
 def part_repository() -> Mock:
-    return Mock()
+    return Mock(
+        spec=PartRepository,
+    )
 
 
 @pytest.fixture
@@ -59,7 +130,9 @@ def service(
     outbound_repository: Mock,
     outbound_item_repository: Mock,
     allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
     purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
     part_repository: Mock,
 ) -> OutboundService:
     return OutboundService(
@@ -70,8 +143,14 @@ def service(
         outbound_purchase_allocation_repository=(
             allocation_repository
         ),
+        outbound_transfer_allocation_repository=(
+            transfer_allocation_repository
+        ),
         purchase_item_repository=(
             purchase_item_repository
+        ),
+        transfer_item_repository=(
+            transfer_item_repository
         ),
         part_repository=part_repository,
     )
@@ -3033,3 +3112,462 @@ def test_should_raise_error_when_purchase_item_is_not_found_on_cancel(
     assert outbound.status == "ACTIVE"
 
     outbound_repository.save.assert_not_called()
+
+def create_transfer_stock_item(
+    transfer_item_id: int = 80,
+    part_id: int = 40,
+    quantity: int = 10,
+    quantity_available: int = 10,
+    return_deadline_days: int = 30,
+) -> SimpleNamespace:
+    """
+    Cria um item de transferência disponível
+    para os testes de saída.
+    """
+
+    return SimpleNamespace(
+        id=transfer_item_id,
+        transfer_id=70,
+        part_id=part_id,
+        quantity=quantity,
+        quantity_available=quantity_available,
+        return_deadline_days=return_deadline_days,
+    )
+
+
+def configure_valid_outbound_item_creation(
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    part_repository: Mock,
+    quantity: int,
+) -> None:
+    """
+    Configura os dados comuns para adicionar
+    uma peça a uma saída.
+    """
+
+    outbound_repository.get_by_id.return_value = (
+        create_outbound()
+    )
+
+    part_repository.get_by_id.return_value = (
+        create_part()
+    )
+
+    outbound_item_repository.list_by_outbound.return_value = (
+        []
+    )
+
+    outbound_item_repository.add.side_effect = None
+
+    outbound_item_repository.add.return_value = (
+        create_outbound_item(
+            outbound_item_id=50,
+            part_id=40,
+            quantity=quantity,
+        )
+    )
+
+
+def test_should_use_only_transfer_stock_when_it_is_sufficient(
+    service: OutboundService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
+    purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    configure_valid_outbound_item_creation(
+        outbound_repository=outbound_repository,
+        outbound_item_repository=(
+            outbound_item_repository
+        ),
+        part_repository=part_repository,
+        quantity=8,
+    )
+
+    transfer_item = create_transfer_stock_item(
+        transfer_item_id=80,
+        quantity=10,
+        quantity_available=10,
+    )
+
+    purchase_item = create_purchase_item(
+        purchase_item_id=60,
+        quantity_available=15,
+    )
+
+    transfer_item_repository.list_available_by_part.return_value = [
+        transfer_item
+    ]
+
+    purchase_item_repository.list_available_by_part.return_value = [
+        purchase_item
+    ]
+
+    result = service.add_item(
+        outbound_id=10,
+        part_id=40,
+        quantity=8,
+    )
+
+    assert result.id == 50
+    assert transfer_item.quantity_available == 2
+    assert purchase_item.quantity_available == 15
+
+    transfer_item_repository.save.assert_called_once_with(
+        transfer_item
+    )
+
+    purchase_item_repository.save.assert_not_called()
+
+    transfer_allocation_repository.add.assert_called_once()
+
+    transfer_allocation = (
+        transfer_allocation_repository
+        .add.call_args.args[0]
+    )
+
+    assert transfer_allocation.outbound_item_id == 50
+    assert transfer_allocation.transfer_item_id == 80
+    assert transfer_allocation.quantity_allocated == 8
+
+    allocation_repository.add.assert_not_called()
+
+
+def test_should_use_transfer_stock_before_purchase_stock(
+    service: OutboundService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
+    purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    configure_valid_outbound_item_creation(
+        outbound_repository=outbound_repository,
+        outbound_item_repository=(
+            outbound_item_repository
+        ),
+        part_repository=part_repository,
+        quantity=7,
+    )
+
+    transfer_item = create_transfer_stock_item(
+        transfer_item_id=80,
+        quantity=3,
+        quantity_available=3,
+    )
+
+    purchase_item = create_purchase_item(
+        purchase_item_id=60,
+        quantity_available=10,
+    )
+
+    transfer_item_repository.list_available_by_part.return_value = [
+        transfer_item
+    ]
+
+    purchase_item_repository.list_available_by_part.return_value = [
+        purchase_item
+    ]
+
+    service.add_item(
+        outbound_id=10,
+        part_id=40,
+        quantity=7,
+    )
+
+    assert transfer_item.quantity_available == 0
+    assert purchase_item.quantity_available == 6
+
+    transfer_item_repository.save.assert_called_once_with(
+        transfer_item
+    )
+
+    purchase_item_repository.save.assert_called_once_with(
+        purchase_item
+    )
+
+    transfer_allocation_repository.add.assert_called_once()
+    allocation_repository.add.assert_called_once()
+
+    transfer_allocation = (
+        transfer_allocation_repository
+        .add.call_args.args[0]
+    )
+
+    purchase_allocation = (
+        allocation_repository
+        .add.call_args.args[0]
+    )
+
+    assert transfer_allocation.transfer_item_id == 80
+    assert transfer_allocation.quantity_allocated == 3
+
+    assert purchase_allocation.purchase_item_id == 60
+    assert purchase_allocation.quantity_allocated == 4
+
+
+def test_should_use_transfer_items_in_repository_order(
+    service: OutboundService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
+    purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    configure_valid_outbound_item_creation(
+        outbound_repository=outbound_repository,
+        outbound_item_repository=(
+            outbound_item_repository
+        ),
+        part_repository=part_repository,
+        quantity=6,
+    )
+
+    first_transfer_item = create_transfer_stock_item(
+        transfer_item_id=80,
+        quantity=4,
+        quantity_available=4,
+    )
+
+    second_transfer_item = create_transfer_stock_item(
+        transfer_item_id=81,
+        quantity=5,
+        quantity_available=5,
+    )
+
+    transfer_item_repository.list_available_by_part.return_value = [
+        first_transfer_item,
+        second_transfer_item,
+    ]
+
+    purchase_item_repository.list_available_by_part.return_value = (
+        []
+    )
+
+    service.add_item(
+        outbound_id=10,
+        part_id=40,
+        quantity=6,
+    )
+
+    assert first_transfer_item.quantity_available == 0
+    assert second_transfer_item.quantity_available == 3
+
+    assert transfer_item_repository.save.call_count == 2
+    assert transfer_allocation_repository.add.call_count == 2
+
+    allocations = [
+        call.args[0]
+        for call
+        in transfer_allocation_repository.add.call_args_list
+    ]
+
+    assert allocations[0].transfer_item_id == 80
+    assert allocations[0].quantity_allocated == 4
+
+    assert allocations[1].transfer_item_id == 81
+    assert allocations[1].quantity_allocated == 2
+
+    allocation_repository.add.assert_not_called()
+
+
+def test_should_stop_transfer_allocation_after_requested_quantity(
+    service: OutboundService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
+    purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    configure_valid_outbound_item_creation(
+        outbound_repository=outbound_repository,
+        outbound_item_repository=(
+            outbound_item_repository
+        ),
+        part_repository=part_repository,
+        quantity=4,
+    )
+
+    first_transfer_item = create_transfer_stock_item(
+        transfer_item_id=80,
+        quantity=10,
+        quantity_available=10,
+    )
+
+    second_transfer_item = create_transfer_stock_item(
+        transfer_item_id=81,
+        quantity=10,
+        quantity_available=10,
+    )
+
+    transfer_item_repository.list_available_by_part.return_value = [
+        first_transfer_item,
+        second_transfer_item,
+    ]
+
+    purchase_item_repository.list_available_by_part.return_value = [
+        create_purchase_item(
+            purchase_item_id=60,
+            quantity_available=10,
+        )
+    ]
+
+    service.add_item(
+        outbound_id=10,
+        part_id=40,
+        quantity=4,
+    )
+
+    assert first_transfer_item.quantity_available == 6
+    assert second_transfer_item.quantity_available == 10
+
+    transfer_item_repository.save.assert_called_once_with(
+        first_transfer_item
+    )
+
+    transfer_allocation_repository.add.assert_called_once()
+
+    allocation = (
+        transfer_allocation_repository
+        .add.call_args.args[0]
+    )
+
+    assert allocation.transfer_item_id == 80
+    assert allocation.quantity_allocated == 4
+
+    purchase_item_repository.save.assert_not_called()
+    allocation_repository.add.assert_not_called()
+
+
+def test_should_use_purchase_stock_when_no_transfer_stock_exists(
+    service: OutboundService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
+    purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    configure_valid_outbound_item_creation(
+        outbound_repository=outbound_repository,
+        outbound_item_repository=(
+            outbound_item_repository
+        ),
+        part_repository=part_repository,
+        quantity=5,
+    )
+
+    purchase_item = create_purchase_item(
+        purchase_item_id=60,
+        quantity_available=8,
+    )
+
+    transfer_item_repository.list_available_by_part.return_value = (
+        []
+    )
+
+    purchase_item_repository.list_available_by_part.return_value = [
+        purchase_item
+    ]
+
+    service.add_item(
+        outbound_id=10,
+        part_id=40,
+        quantity=5,
+    )
+
+    assert purchase_item.quantity_available == 3
+
+    purchase_item_repository.save.assert_called_once_with(
+        purchase_item
+    )
+
+    allocation_repository.add.assert_called_once()
+
+    purchase_allocation = (
+        allocation_repository
+        .add.call_args.args[0]
+    )
+
+    assert purchase_allocation.purchase_item_id == 60
+    assert purchase_allocation.quantity_allocated == 5
+
+    transfer_item_repository.save.assert_not_called()
+    transfer_allocation_repository.add.assert_not_called()
+
+
+def test_should_reject_when_combined_stock_is_insufficient(
+    service: OutboundService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    allocation_repository: Mock,
+    transfer_allocation_repository: Mock,
+    purchase_item_repository: Mock,
+    transfer_item_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    outbound_repository.get_by_id.return_value = (
+        create_outbound()
+    )
+
+    part_repository.get_by_id.return_value = (
+        create_part()
+    )
+
+    outbound_item_repository.list_by_outbound.return_value = (
+        []
+    )
+
+    transfer_item = create_transfer_stock_item(
+        transfer_item_id=80,
+        quantity=2,
+        quantity_available=2,
+    )
+
+    purchase_item = create_purchase_item(
+        purchase_item_id=60,
+        quantity_available=3,
+    )
+
+    transfer_item_repository.list_available_by_part.return_value = [
+        transfer_item
+    ]
+
+    purchase_item_repository.list_available_by_part.return_value = [
+        purchase_item
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Quantidade disponível insuficiente "
+            "para a saída."
+        ),
+    ):
+        service.add_item(
+            outbound_id=10,
+            part_id=40,
+            quantity=8,
+        )
+
+    assert transfer_item.quantity_available == 2
+    assert purchase_item.quantity_available == 3
+
+    outbound_item_repository.add.assert_not_called()
+
+    transfer_item_repository.save.assert_not_called()
+    purchase_item_repository.save.assert_not_called()
+
+    transfer_allocation_repository.add.assert_not_called()
+    allocation_repository.add.assert_not_called()

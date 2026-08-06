@@ -54,6 +54,12 @@ from src.services.purchase_service import PurchaseService
 from src.services.supplier_return_service import (
     SupplierReturnService,
 )
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
+from src.repositories.transfer_item_repository import (
+    TransferItemRepository,
+)
 
 
 def main() -> None:
@@ -74,6 +80,17 @@ def main() -> None:
         )
         outbound_purchase_allocation_repository = (
             OutboundPurchaseAllocationRepository(session)
+        )
+        outbound_transfer_allocation_repository = (
+            OutboundTransferAllocationRepository(
+                session
+            )
+        )
+
+        transfer_item_repository = (
+            TransferItemRepository(
+                session
+            )
         )
 
         customer_return_repository = (
@@ -145,15 +162,23 @@ def main() -> None:
         )
 
         outbound_service = OutboundService(
-            outbound_repository=outbound_repository,
+            outbound_repository=(
+                outbound_repository
+            ),
             outbound_item_repository=(
                 outbound_item_repository
             ),
             outbound_purchase_allocation_repository=(
                 outbound_purchase_allocation_repository
             ),
+            outbound_transfer_allocation_repository=(
+                outbound_transfer_allocation_repository
+            ),
             purchase_item_repository=(
                 purchase_item_repository
+            ),
+            transfer_item_repository=(
+                transfer_item_repository
             ),
             part_repository=part_repository,
         )
@@ -182,13 +207,20 @@ def main() -> None:
             supplier_return_item_repository=(
                 supplier_return_item_repository
             ),
-            supplier_repository=supplier_repository,
-            purchase_repository=purchase_repository,
+            supplier_repository=(
+                supplier_repository
+            ),
+            purchase_repository=(
+                purchase_repository
+            ),
             purchase_item_repository=(
                 purchase_item_repository
             ),
             outbound_purchase_allocation_repository=(
                 outbound_purchase_allocation_repository
+            ),
+            outbound_transfer_allocation_repository=(
+                outbound_transfer_allocation_repository
             ),
             customer_return_allocation_repository=(
                 customer_return_allocation_repository

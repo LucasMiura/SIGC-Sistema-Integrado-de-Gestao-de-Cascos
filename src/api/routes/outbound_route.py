@@ -18,6 +18,9 @@ from src.repositories.outbound_item_repository import (
 from src.repositories.outbound_purchase_allocation_repository import (
     OutboundPurchaseAllocationRepository,
 )
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
 from src.repositories.outbound_repository import (
     OutboundRepository,
 )
@@ -26,6 +29,9 @@ from src.repositories.part_repository import (
 )
 from src.repositories.purchase_item_repository import (
     PurchaseItemRepository,
+)
+from src.repositories.transfer_item_repository import (
+    TransferItemRepository,
 )
 from src.schemas.outbound_schema import (
     OutboundCreateRequest,
@@ -69,14 +75,26 @@ def get_outbound_service(
         )
     )
 
-    allocation_repository = (
+    purchase_allocation_repository = (
         OutboundPurchaseAllocationRepository(
+            session
+        )
+    )
+
+    transfer_allocation_repository = (
+        OutboundTransferAllocationRepository(
             session
         )
     )
 
     purchase_item_repository = (
         PurchaseItemRepository(
+            session
+        )
+    )
+
+    transfer_item_repository = (
+        TransferItemRepository(
             session
         )
     )
@@ -93,10 +111,16 @@ def get_outbound_service(
             outbound_item_repository
         ),
         outbound_purchase_allocation_repository=(
-            allocation_repository
+            purchase_allocation_repository
+        ),
+        outbound_transfer_allocation_repository=(
+            transfer_allocation_repository
         ),
         purchase_item_repository=(
             purchase_item_repository
+        ),
+        transfer_item_repository=(
+            transfer_item_repository
         ),
         part_repository=part_repository,
     )

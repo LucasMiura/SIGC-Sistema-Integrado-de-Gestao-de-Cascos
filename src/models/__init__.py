@@ -21,6 +21,13 @@ from src.models.transfer import Transfer
 from src.models.transfer_item import TransferItem
 from src.models.core_movement import CoreMovement
 from src.models.audit_log import AuditLog
+from src.models.outbound_transfer_allocation import (
+    OutboundTransferAllocation,
+)
+from src.models.transfer_return import TransferReturn
+from src.models.transfer_return_item import (
+    TransferReturnItem,
+)
 
 __all__ = [
     "Part",
@@ -35,6 +42,7 @@ __all__ = [
     "Outbound",
     "OutboundItem",
     "OutboundPurchaseAllocation",
+    "OutboundTransferAllocation",
     "CustomerReturn",
     "CustomerReturnAllocation",
     "CustomerReturnItem",
@@ -42,4 +50,6 @@ __all__ = [
     "TransferItem",
     "CoreMovement",
     "AuditLog",
+    "TransferReturn",
+    "TransferReturnItem",
 ]

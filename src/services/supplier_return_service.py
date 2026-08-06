@@ -23,6 +23,9 @@ from src.repositories.supplier_return_item_repository import (
 from src.repositories.supplier_return_repository import (
     SupplierReturnRepository,
 )
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
 
 
 class SupplierReturnService:
@@ -52,6 +55,9 @@ class SupplierReturnService:
         outbound_purchase_allocation_repository: (
             OutboundPurchaseAllocationRepository
         ),
+        outbound_transfer_allocation_repository: (
+            OutboundTransferAllocationRepository
+        ),
         customer_return_allocation_repository: (
             CustomerReturnAllocationRepository
         ),
@@ -78,6 +84,10 @@ class SupplierReturnService:
 
         self.outbound_purchase_allocation_repository = (
             outbound_purchase_allocation_repository
+        )
+
+        self.outbound_transfer_allocation_repository = (
+            outbound_transfer_allocation_repository
         )
 
         self.customer_return_allocation_repository = (
@@ -405,16 +415,13 @@ class SupplierReturnService:
         Calcula quantos cascos devolvidos pelos clientes
         pertencem a um item específico de compra.
 
-        A devolução do cliente está vinculada ao item da
-        saída. Cada item da saída pode ter sido consumido
-        de um ou mais itens de compra por meio do FIFO.
-
-        As quantidades devolvidas são redistribuídas sobre
-        as alocações FIFO da saída, preservando a ordem
-        original dessas alocações.
+        A saída consome primeiro itens de transferência
+        e somente depois itens de compra. A atribuição
+        das devoluções respeita exatamente essa mesma
+        ordem de origem.
         """
 
-        target_allocations = (
+        target_purchase_allocations = (
             self.outbound_purchase_allocation_repository
             .list_by_purchase_item(
                 purchase_item_id
@@ -423,13 +430,21 @@ class SupplierReturnService:
 
         outbound_item_ids = {
             allocation.outbound_item_id
-            for allocation in target_allocations
+            for allocation
+            in target_purchase_allocations
         }
 
         total_returned_for_purchase_item = 0
 
         for outbound_item_id in outbound_item_ids:
-            outbound_allocations = (
+            transfer_allocations = (
+                self.outbound_transfer_allocation_repository
+                .list_by_outbound_item(
+                    outbound_item_id
+                )
+            )
+
+            purchase_allocations = (
                 self.outbound_purchase_allocation_repository
                 .list_by_outbound_item(
                     outbound_item_id
@@ -449,30 +464,43 @@ class SupplierReturnService:
                 in customer_return_allocations
             )
 
-            for outbound_allocation in (
-                outbound_allocations
-            ):
+            # A saída consumiu transferências primeiro.
+            # Logo, as primeiras unidades devolvidas também
+            # pertencem às origens de transferência.
+            for transfer_allocation in transfer_allocations:
                 if remaining_returned_quantity <= 0:
                     break
 
-                returned_for_allocation = min(
+                returned_for_transfer = min(
                     remaining_returned_quantity,
-                    (
-                        outbound_allocation
-                        .quantity_allocated
-                    ),
+                    transfer_allocation.quantity_allocated,
+                )
+
+                remaining_returned_quantity -= (
+                    returned_for_transfer
+                )
+
+            # Apenas o saldo da devolução que ultrapassou
+            # as transferências pode pertencer às compras.
+            for purchase_allocation in purchase_allocations:
+                if remaining_returned_quantity <= 0:
+                    break
+
+                returned_for_purchase = min(
+                    remaining_returned_quantity,
+                    purchase_allocation.quantity_allocated,
                 )
 
                 if (
-                    outbound_allocation.purchase_item_id
+                    purchase_allocation.purchase_item_id
                     == purchase_item_id
                 ):
                     total_returned_for_purchase_item += (
-                        returned_for_allocation
+                        returned_for_purchase
                     )
 
                 remaining_returned_quantity -= (
-                    returned_for_allocation
+                    returned_for_purchase
                 )
 
         return total_returned_for_purchase_item

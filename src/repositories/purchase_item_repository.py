@@ -54,3 +54,15 @@ class PurchaseItemRepository:
         self.session.add(purchase_item)
         self.session.flush()
         return purchase_item
+
+    def save(
+        self,
+        purchase_item: PurchaseItem,
+    ) -> PurchaseItem:
+        self.session.add(
+            purchase_item
+        )
+
+        self.session.flush()
+
+        return purchase_item

@@ -27,7 +27,9 @@ from src.api.routes.supplier_route import (
 from src.api.routes.transfer_route import (
     router as transfer_router,
 )
-
+from src.api.routes.transfer_return_route import (
+    router as transfer_return_router,
+)
 
 __all__ = [
     "customer_return_router",
@@ -39,4 +41,5 @@ __all__ = [
     "supplier_return_router",
     "supplier_router",
     "transfer_router",
+    "transfer_return_router",
 ]

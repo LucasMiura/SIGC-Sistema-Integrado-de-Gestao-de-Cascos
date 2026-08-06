@@ -10,6 +10,7 @@ from src.api.routes import (
     supplier_return_router,
     supplier_router,
     transfer_router,
+    transfer_return_router,
 )
 
 
@@ -58,6 +59,9 @@ app.include_router(
     transfer_router
 )
 
+app.include_router(
+    transfer_return_router
+)
 
 @app.get(
     "/",

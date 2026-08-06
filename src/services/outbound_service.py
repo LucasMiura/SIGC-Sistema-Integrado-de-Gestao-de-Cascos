@@ -3,6 +3,9 @@ from src.models.outbound_item import OutboundItem
 from src.models.outbound_purchase_allocation import (
     OutboundPurchaseAllocation,
 )
+from src.models.outbound_transfer_allocation import (
+    OutboundTransferAllocation,
+)
 from src.repositories.outbound_item_repository import (
     OutboundItemRepository,
 )
@@ -15,6 +18,12 @@ from src.repositories.outbound_repository import (
 from src.repositories.part_repository import PartRepository
 from src.repositories.purchase_item_repository import (
     PurchaseItemRepository,
+)
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
+from src.repositories.transfer_item_repository import (
+    TransferItemRepository,
 )
 
 
@@ -33,7 +42,11 @@ class OutboundService:
         outbound_purchase_allocation_repository: (
             OutboundPurchaseAllocationRepository
         ),
+        outbound_transfer_allocation_repository: (
+            OutboundTransferAllocationRepository
+        ),
         purchase_item_repository: PurchaseItemRepository,
+        transfer_item_repository: TransferItemRepository,
         part_repository: PartRepository,
     ) -> None:
         self.outbound_repository = outbound_repository
@@ -46,8 +59,16 @@ class OutboundService:
             outbound_purchase_allocation_repository
         )
 
+        self.outbound_transfer_allocation_repository = (
+            outbound_transfer_allocation_repository
+        )
+
         self.purchase_item_repository = (
             purchase_item_repository
+        )
+
+        self.transfer_item_repository = (
+            transfer_item_repository
         )
 
         self.part_repository = part_repository
@@ -158,14 +179,19 @@ class OutboundService:
                 "maior que zero."
             )
 
-        outbound = self.get_outbound(
+        outbound = self.outbound_repository.get_by_id(
             outbound_id
         )
 
+        if outbound is None:
+            raise ValueError(
+                "Saída não encontrada."
+            )
+
         if outbound.status == "CANCELLED":
             raise ValueError(
-                "Não é possível adicionar itens "
-                "a uma saída cancelada."
+                "Não é possível adicionar itens a uma "
+                "saída cancelada."
             )
 
         part = self.part_repository.get_by_id(
@@ -183,7 +209,7 @@ class OutboundService:
                 "de uma peça inativa."
             )
 
-        existing_items = (
+        existing_outbound_items = (
             self.outbound_item_repository
             .list_by_outbound(
                 outbound_id
@@ -191,12 +217,19 @@ class OutboundService:
         )
 
         if any(
-            item.part_id == part_id
-            for item in existing_items
+            outbound_item.part_id == part_id
+            for outbound_item in existing_outbound_items
         ):
             raise ValueError(
                 "Esta peça já foi adicionada à saída."
             )
+
+        available_transfer_items = (
+            self.transfer_item_repository
+            .list_available_by_part(
+                part_id
+            )
+        )
 
         available_purchase_items = (
             self.purchase_item_repository
@@ -205,10 +238,19 @@ class OutboundService:
             )
         )
 
-        total_available = sum(
+        total_transfer_available = sum(
+            transfer_item.quantity_available
+            for transfer_item in available_transfer_items
+        )
+
+        total_purchase_available = sum(
             purchase_item.quantity_available
-            for purchase_item
-            in available_purchase_items
+            for purchase_item in available_purchase_items
+        )
+
+        total_available = (
+            total_transfer_available
+            + total_purchase_available
         )
 
         if total_available < quantity:
@@ -231,9 +273,52 @@ class OutboundService:
 
         remaining_quantity = quantity
 
+        # Transferências possuem prioridade porque têm
+        # prazo específico para devolução à filial de origem.
+        for transfer_item in available_transfer_items:
+            if remaining_quantity <= 0:
+                break
+
+            if transfer_item.quantity_available <= 0:
+                continue
+
+            quantity_to_allocate = min(
+                transfer_item.quantity_available,
+                remaining_quantity,
+            )
+
+            transfer_item.quantity_available -= (
+                quantity_to_allocate
+            )
+
+            self.transfer_item_repository.save(
+                transfer_item
+            )
+
+            transfer_allocation = (
+                OutboundTransferAllocation(
+                    outbound_item_id=outbound_item.id,
+                    transfer_item_id=transfer_item.id,
+                    quantity_allocated=(
+                        quantity_to_allocate
+                    ),
+                )
+            )
+
+            self.outbound_transfer_allocation_repository.add(
+                transfer_allocation
+            )
+
+            remaining_quantity -= quantity_to_allocate
+
+        # Somente o saldo não atendido pelas transferências
+        # segue para o FIFO das compras.
         for purchase_item in available_purchase_items:
             if remaining_quantity <= 0:
                 break
+
+            if purchase_item.quantity_available <= 0:
+                continue
 
             quantity_to_allocate = min(
                 purchase_item.quantity_available,
@@ -244,14 +329,14 @@ class OutboundService:
                 quantity_to_allocate
             )
 
-            allocation = (
+            self.purchase_item_repository.save(
+                purchase_item
+            )
+
+            purchase_allocation = (
                 OutboundPurchaseAllocation(
-                    outbound_item_id=(
-                        outbound_item.id
-                    ),
-                    purchase_item_id=(
-                        purchase_item.id
-                    ),
+                    outbound_item_id=outbound_item.id,
+                    purchase_item_id=purchase_item.id,
                     quantity_allocated=(
                         quantity_to_allocate
                     ),
@@ -259,17 +344,15 @@ class OutboundService:
             )
 
             self.outbound_purchase_allocation_repository.add(
-                allocation
+                purchase_allocation
             )
 
-            remaining_quantity -= (
-                quantity_to_allocate
-            )
+            remaining_quantity -= quantity_to_allocate
 
         if remaining_quantity > 0:
             raise ValueError(
-                "Não foi possível alocar toda a "
-                "quantidade solicitada."
+                "Não foi possível alocar toda a quantidade "
+                "solicitada para a saída."
             )
 
         return outbound_item

@@ -28,6 +28,9 @@ from src.repositories.supplier_return_item_repository import (
 from src.repositories.supplier_return_repository import (
     SupplierReturnRepository,
 )
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
 from src.services.supplier_return_service import (
     SupplierReturnService,
 )
@@ -90,6 +93,7 @@ def service(
     purchase_repository: Mock,
     purchase_item_repository: Mock,
     outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
     customer_return_allocation_repository: Mock,
 ) -> SupplierReturnService:
     return SupplierReturnService(
@@ -107,11 +111,24 @@ def service(
         outbound_purchase_allocation_repository=(
             outbound_purchase_allocation_repository
         ),
+        outbound_transfer_allocation_repository=(
+            outbound_transfer_allocation_repository
+        ),
         customer_return_allocation_repository=(
             customer_return_allocation_repository
         ),
     )
 
+
+@pytest.fixture
+def outbound_transfer_allocation_repository() -> Mock:
+    repository = Mock(
+        spec=OutboundTransferAllocationRepository,
+    )
+
+    repository.list_by_outbound_item.return_value = []
+
+    return repository
 
 def create_supplier(
     supplier_id: int = 10,
@@ -526,6 +543,17 @@ def test_should_reject_invalid_status(
 
     supplier_return_repository.add.assert_not_called()
 
+def create_outbound_transfer_allocation(
+    outbound_item_id: int,
+    transfer_item_id: int,
+    quantity_allocated: int,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        outbound_item_id=outbound_item_id,
+        transfer_item_id=transfer_item_id,
+        quantity_allocated=quantity_allocated,
+    )
 
 def test_should_reject_creation_with_cancelled_status(
     service: SupplierReturnService,
@@ -1567,3 +1595,417 @@ def test_should_reject_listing_items_from_missing_supplier_return(
         )
 
     supplier_return_item_repository.list_by_supplier_return.assert_not_called()
+
+def test_should_not_make_purchase_available_when_return_only_covers_transfer(
+    service: SupplierReturnService,
+    purchase_item_repository: Mock,
+    supplier_return_item_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    customer_return_allocation_repository: Mock,
+) -> None:
+    """
+    Saída:
+    - 3 unidades de transferência;
+    - 5 unidades de compra.
+
+    Devolução:
+    - 2 unidades.
+
+    Como a transferência foi consumida primeiro,
+    nenhuma unidade deve ficar disponível para
+    remessa ao fornecedor.
+    """
+
+    purchase_item_repository.get_by_id.return_value = (
+        create_purchase_item(
+            purchase_item_id=50,
+        )
+    )
+
+    outbound_purchase_allocation_repository.list_by_purchase_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_transfer_allocation(
+            outbound_item_id=80,
+            transfer_item_id=90,
+            quantity_allocated=3,
+        )
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_customer_return_allocation(
+            outbound_item_id=80,
+            quantity_allocated=2,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        0
+    )
+
+    result = service.get_available_quantity(
+        50
+    )
+
+    assert result == 0
+
+
+def test_should_make_only_return_above_transfer_available_for_purchase(
+    service: SupplierReturnService,
+    purchase_item_repository: Mock,
+    supplier_return_item_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    customer_return_allocation_repository: Mock,
+) -> None:
+    """
+    Saída:
+    - 3 unidades de transferência;
+    - 5 unidades de compra.
+
+    Devolução:
+    - 4 unidades.
+
+    Resultado:
+    - 3 unidades pertencem à transferência;
+    - somente 1 unidade pertence à compra.
+    """
+
+    purchase_item_repository.get_by_id.return_value = (
+        create_purchase_item(
+            purchase_item_id=50,
+        )
+    )
+
+    outbound_purchase_allocation_repository.list_by_purchase_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_transfer_allocation(
+            outbound_item_id=80,
+            transfer_item_id=90,
+            quantity_allocated=3,
+        )
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_customer_return_allocation(
+            outbound_item_id=80,
+            quantity_allocated=4,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        0
+    )
+
+    result = service.get_available_quantity(
+        50
+    )
+
+    assert result == 1
+
+
+def test_should_distribute_return_after_multiple_transfer_allocations(
+    service: SupplierReturnService,
+    purchase_item_repository: Mock,
+    supplier_return_item_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    customer_return_allocation_repository: Mock,
+) -> None:
+    """
+    Saída:
+    - Transferência A: 2 unidades;
+    - Transferência B: 3 unidades;
+    - Compra: 5 unidades.
+
+    Devolução:
+    - 7 unidades.
+
+    As primeiras 5 unidades pertencem às transferências.
+    Apenas 2 unidades pertencem à compra.
+    """
+
+    purchase_item_repository.get_by_id.return_value = (
+        create_purchase_item(
+            purchase_item_id=50,
+        )
+    )
+
+    outbound_purchase_allocation_repository.list_by_purchase_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_transfer_allocation(
+            outbound_item_id=80,
+            transfer_item_id=90,
+            quantity_allocated=2,
+        ),
+        create_outbound_transfer_allocation(
+            outbound_item_id=80,
+            transfer_item_id=91,
+            quantity_allocated=3,
+        ),
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_customer_return_allocation(
+            outbound_item_id=80,
+            quantity_allocated=7,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        0
+    )
+
+    result = service.get_available_quantity(
+        50
+    )
+
+    assert result == 2
+
+
+def test_should_preserve_purchase_fifo_after_transfer_quantity_is_consumed(
+    service: SupplierReturnService,
+    purchase_item_repository: Mock,
+    supplier_return_item_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    customer_return_allocation_repository: Mock,
+) -> None:
+    """
+    Saída:
+    - Transferência: 3 unidades;
+    - Compra A: 5 unidades;
+    - Compra B: 4 unidades.
+
+    Devolução:
+    - 10 unidades.
+
+    Distribuição:
+    - Transferência: 3;
+    - Compra A: 5;
+    - Compra B: 2.
+    """
+
+    purchase_item_repository.get_by_id.return_value = (
+        create_purchase_item(
+            purchase_item_id=51,
+        )
+    )
+
+    outbound_purchase_allocation_repository.list_by_purchase_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=51,
+            quantity_allocated=4,
+        )
+    ]
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_transfer_allocation(
+            outbound_item_id=80,
+            transfer_item_id=90,
+            quantity_allocated=3,
+        )
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        ),
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=51,
+            quantity_allocated=4,
+        ),
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_customer_return_allocation(
+            outbound_item_id=80,
+            quantity_allocated=10,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        0
+    )
+
+    result = service.get_available_quantity(
+        51
+    )
+
+    assert result == 2
+
+
+def test_should_keep_previous_behavior_when_outbound_has_no_transfer_allocation(
+    service: SupplierReturnService,
+    purchase_item_repository: Mock,
+    supplier_return_item_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    customer_return_allocation_repository: Mock,
+) -> None:
+    """
+    Sem transferência, o cálculo deve continuar
+    seguindo somente o FIFO das compras.
+    """
+
+    purchase_item_repository.get_by_id.return_value = (
+        create_purchase_item(
+            purchase_item_id=50,
+        )
+    )
+
+    outbound_purchase_allocation_repository.list_by_purchase_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = (
+        []
+    )
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_customer_return_allocation(
+            outbound_item_id=80,
+            quantity_allocated=4,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        0
+    )
+
+    result = service.get_available_quantity(
+        50
+    )
+
+    assert result == 4
+
+
+def test_should_subtract_quantity_already_sent_to_supplier_after_origin_distribution(
+    service: SupplierReturnService,
+    purchase_item_repository: Mock,
+    supplier_return_item_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    customer_return_allocation_repository: Mock,
+) -> None:
+    """
+    Saída:
+    - Transferência: 3 unidades;
+    - Compra: 5 unidades.
+
+    Cliente devolveu:
+    - 7 unidades.
+
+    Da compra:
+    - 4 unidades foram devolvidas;
+    - 2 já foram remetidas ao fornecedor;
+    - restam 2 disponíveis.
+    """
+
+    purchase_item_repository.get_by_id.return_value = (
+        create_purchase_item(
+            purchase_item_id=50,
+        )
+    )
+
+    outbound_purchase_allocation_repository.list_by_purchase_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_transfer_allocation(
+            outbound_item_id=80,
+            transfer_item_id=90,
+            quantity_allocated=3,
+        )
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        create_outbound_purchase_allocation(
+            outbound_item_id=80,
+            purchase_item_id=50,
+            quantity_allocated=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_customer_return_allocation(
+            outbound_item_id=80,
+            quantity_allocated=7,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        2
+    )
+
+    result = service.get_available_quantity(
+        50
+    )
+
+    assert result == 2

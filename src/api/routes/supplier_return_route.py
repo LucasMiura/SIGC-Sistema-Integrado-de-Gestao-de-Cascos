@@ -17,6 +17,9 @@ from src.repositories.customer_return_allocation_repository import (
 from src.repositories.outbound_purchase_allocation_repository import (
     OutboundPurchaseAllocationRepository,
 )
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
 from src.repositories.purchase_item_repository import (
     PurchaseItemRepository,
 )
@@ -96,6 +99,12 @@ def get_supplier_return_service(
         )
     )
 
+    outbound_transfer_allocation_repository = (
+        OutboundTransferAllocationRepository(
+            session
+        )
+    )
+
     customer_return_allocation_repository = (
         CustomerReturnAllocationRepository(
             session
@@ -120,6 +129,9 @@ def get_supplier_return_service(
         ),
         outbound_purchase_allocation_repository=(
             outbound_purchase_allocation_repository
+        ),
+        outbound_transfer_allocation_repository=(
+            outbound_transfer_allocation_repository
         ),
         customer_return_allocation_repository=(
             customer_return_allocation_repository
