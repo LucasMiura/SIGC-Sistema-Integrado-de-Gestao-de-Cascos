@@ -6,11 +6,13 @@ from src.api.routes import (
     part_router,
     purchase_router,
     purchase_tracking_router,
+    role_router,
     supplier_contact_router,
     supplier_return_router,
     supplier_router,
     transfer_router,
     transfer_return_router,
+    user_router,
 )
 
 
@@ -22,6 +24,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+
+app.include_router(
+    role_router
+)
+
+app.include_router(
+    user_router
+)
 
 app.include_router(
     supplier_router
@@ -62,6 +72,7 @@ app.include_router(
 app.include_router(
     transfer_return_router
 )
+
 
 @app.get(
     "/",

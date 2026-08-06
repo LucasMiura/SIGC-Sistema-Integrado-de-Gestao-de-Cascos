@@ -15,6 +15,9 @@ from src.api.routes.purchase_route import (
 from src.api.routes.purchase_tracking_route import (
     router as purchase_tracking_router,
 )
+from src.api.routes.role_route import (
+    router as role_router,
+)
 from src.api.routes.supplier_contact_route import (
     router as supplier_contact_router,
 )
@@ -30,6 +33,10 @@ from src.api.routes.transfer_route import (
 from src.api.routes.transfer_return_route import (
     router as transfer_return_router,
 )
+from src.api.routes.user_route import (
+    router as user_router,
+)
+
 
 __all__ = [
     "customer_return_router",
@@ -37,9 +44,11 @@ __all__ = [
     "part_router",
     "purchase_router",
     "purchase_tracking_router",
+    "role_router",
     "supplier_contact_router",
     "supplier_return_router",
     "supplier_router",
     "transfer_router",
     "transfer_return_router",
+    "user_router",
 ]
