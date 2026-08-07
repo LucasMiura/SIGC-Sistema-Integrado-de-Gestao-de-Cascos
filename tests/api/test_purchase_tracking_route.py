@@ -15,6 +15,17 @@ from src.main import app
 from src.services.purchase_tracking_service import (
     PurchaseTrackingService,
 )
+from types import SimpleNamespace
+
+from sqlalchemy.orm import Session
+
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_BUYER,
+)
+from src.database.connection import get_session
 
 
 @pytest.fixture
@@ -25,23 +36,58 @@ def service_mock() -> Mock:
 
     return Mock(spec=PurchaseTrackingService)
 
+@pytest.fixture
+def session_mock() -> Mock:
+    return Mock(
+        spec=Session,
+    )
 
 @pytest.fixture
 def client(
     service_mock: Mock,
+    session_mock: Mock,
 ) -> Generator[TestClient, None, None]:
     """
-    Cria o cliente HTTP substituindo a dependência real do serviço.
-
-    Dessa forma, os testes da rota não acessam o banco SQLite.
+    Cria o cliente HTTP simulando
+    um Comprador autenticado.
     """
+
+    buyer_user = SimpleNamespace(
+        id=30,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name=ROLE_BUYER,
+    )
 
     def override_purchase_tracking_service() -> Mock:
         return service_mock
 
+    def override_session():
+        yield session_mock
+
+    def override_get_current_user():
+        return buyer_user
+
+    session_mock.scalar.return_value = (
+        buyer_role
+    )
+
     app.dependency_overrides[
         get_purchase_tracking_service
     ] = override_purchase_tracking_service
+
+    app.dependency_overrides[
+        get_session
+    ] = override_session
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
 
     with TestClient(app) as test_client:
         yield test_client
@@ -183,3 +229,97 @@ def test_should_return_422_for_non_positive_purchase_id(
     assert response.status_code == 422
 
     service_mock.get_purchase_tracking.assert_not_called()
+
+def test_should_return_401_without_authentication(
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    def override_service() -> Mock:
+        return service_mock
+
+    def override_session():
+        yield session_mock
+
+    app.dependency_overrides[
+        get_purchase_tracking_service
+    ] = override_service
+
+    app.dependency_overrides[
+        get_session
+    ] = override_session
+
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/purchases/1/tracking"
+            )
+
+        assert response.status_code == 401
+
+        service_mock.get_purchase_tracking.assert_not_called()
+
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_should_return_403_when_seller_accesses_purchase_tracking(
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    seller_user = SimpleNamespace(
+        id=40,
+        username="vendedor",
+        role_id=3,
+        is_active=1,
+    )
+
+    seller_role = SimpleNamespace(
+        id=3,
+        name="Vendedor",
+    )
+
+    def override_service() -> Mock:
+        return service_mock
+
+    def override_session():
+        yield session_mock
+
+    def override_get_current_user():
+        return seller_user
+
+    session_mock.scalar.return_value = (
+        seller_role
+    )
+
+    app.dependency_overrides[
+        get_purchase_tracking_service
+    ] = override_service
+
+    app.dependency_overrides[
+        get_session
+    ] = override_session
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/purchases/1/tracking"
+            )
+
+        assert response.status_code == 403
+
+        assert response.json() == {
+            "detail": (
+                "O usuário autenticado não possui "
+                "permissão para realizar esta "
+                "operação."
+            ),
+        }
+
+        service_mock.get_purchase_tracking.assert_not_called()
+
+    finally:
+        app.dependency_overrides.clear()

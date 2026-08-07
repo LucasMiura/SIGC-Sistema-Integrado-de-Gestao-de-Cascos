@@ -72,18 +72,6 @@ class TransferCreateRequest(BaseModel):
         ],
     )
 
-    created_by: int = Field(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do usuário responsável "
-            "pelo lançamento"
-        ),
-        examples=[
-            1,
-        ],
-    )
-
     status: TransferStatus = Field(
         default=TransferStatus.ACTIVE,
         description="Status inicial da transferência",

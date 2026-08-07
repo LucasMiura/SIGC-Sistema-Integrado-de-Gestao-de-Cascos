@@ -14,6 +14,12 @@ from src.database.connection import get_session
 from src.services.transfer_return_service import (
     TransferReturnService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_BUYER,
+)
 
 
 @pytest.fixture
@@ -37,8 +43,16 @@ def app(
 ) -> FastAPI:
     test_app = FastAPI()
 
-    test_app.include_router(
-        router
+    buyer_user = SimpleNamespace(
+        id=50,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name=ROLE_BUYER,
     )
 
     def override_get_session():
@@ -47,6 +61,13 @@ def app(
     def override_get_transfer_return_service():
         return service
 
+    def override_get_current_user():
+        return buyer_user
+
+    session.scalar.return_value = (
+        buyer_role
+    )
+
     test_app.dependency_overrides[
         get_session
     ] = override_get_session
@@ -54,6 +75,14 @@ def app(
     test_app.dependency_overrides[
         get_transfer_return_service
     ] = override_get_transfer_return_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
 
     return test_app
 
@@ -159,7 +188,6 @@ def test_should_create_transfer_return(
             ),
             "dispatch_invoice_series": "1",
             "issue_date": "2026-08-05",
-            "created_by": 50,
             "status": "ACTIVE",
             "notes": "Devolução parcial.",
         },
@@ -212,7 +240,6 @@ def test_should_create_transfer_return_without_optional_fields(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
         },
     )
 
@@ -254,7 +281,6 @@ def test_should_create_transfer_return_without_optional_fields(
                     "NF-RETURN-100"
                 ),
                 "issue_date": "2026-08-05",
-                "created_by": 50,
             },
             "transfer_id",
         ),
@@ -262,7 +288,6 @@ def test_should_create_transfer_return_without_optional_fields(
             {
                 "transfer_id": 10,
                 "issue_date": "2026-08-05",
-                "created_by": 50,
             },
             "dispatch_invoice_number",
         ),
@@ -272,19 +297,8 @@ def test_should_create_transfer_return_without_optional_fields(
                 "dispatch_invoice_number": (
                     "NF-RETURN-100"
                 ),
-                "created_by": 50,
             },
             "issue_date",
-        ),
-        (
-            {
-                "transfer_id": 10,
-                "dispatch_invoice_number": (
-                    "NF-RETURN-100"
-                ),
-                "issue_date": "2026-08-05",
-            },
-            "created_by",
         ),
     ],
 )
@@ -324,14 +338,6 @@ def test_should_return_422_when_required_create_field_is_missing(
             "transfer_id",
             -1,
         ),
-        (
-            "created_by",
-            0,
-        ),
-        (
-            "created_by",
-            -1,
-        ),
     ],
 )
 def test_should_return_422_when_create_id_is_invalid(
@@ -347,7 +353,6 @@ def test_should_return_422_when_create_id_is_invalid(
             "NF-RETURN-100"
         ),
         "issue_date": "2026-08-05",
-        "created_by": 50,
     }
 
     payload[field] = value
@@ -435,7 +440,6 @@ def test_should_return_422_when_create_status_is_invalid(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
             "status": "FINISHED",
         },
     )
@@ -462,7 +466,6 @@ def test_should_return_422_when_create_payload_has_extra_field(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
             "unexpected_field": "value",
         },
     )
@@ -500,7 +503,6 @@ def test_should_return_404_when_related_resource_is_not_found_on_create(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
         },
     )
 
@@ -539,7 +541,6 @@ def test_should_return_409_when_invoice_is_duplicated(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
         },
     )
 
@@ -591,7 +592,6 @@ def test_should_return_400_when_business_error_occurs_on_create(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
         },
     )
 
@@ -626,7 +626,6 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
                 "NF-RETURN-100"
             ),
             "issue_date": "2026-08-05",
-            "created_by": 50,
         },
     )
 

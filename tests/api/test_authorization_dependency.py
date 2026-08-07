@@ -17,6 +17,7 @@ from src.api.dependencies.authorization import (
     require_roles,
 )
 from src.database.connection import get_session
+from src.models.user import User
 
 
 @pytest.fixture
@@ -75,16 +76,14 @@ def create_app(
         *allowed_roles
     )
 
-    AuthorizedUserDependency = Annotated[
-        object,
-        Depends(role_dependency),
-    ]
-
     @test_app.get(
         "/protected"
     )
     def protected_route(
-        authorized_user: AuthorizedUserDependency,
+        authorized_user: Annotated[
+            User,
+            Depends(role_dependency),
+        ],
     ) -> dict:
         return {
             "user_id": authorized_user.id,

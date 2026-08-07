@@ -45,6 +45,9 @@ from src.schemas.supplier_return_schema import (
 from src.services.supplier_return_service import (
     SupplierReturnService,
 )
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 
 
 router = APIRouter(
@@ -212,6 +215,7 @@ def create_supplier_return(
     ],
     session: SessionDependency,
     service: SupplierReturnServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
 ) -> SupplierReturnResponse:
     """
     Registra uma nova remessa de cascos
@@ -229,7 +233,7 @@ def create_supplier_return(
                     payload.dispatch_invoice_series
                 ),
                 issue_date=payload.issue_date,
-                created_by=payload.created_by,
+                created_by=current_user.id,
                 status=payload.status.value,
                 notes=payload.notes,
             )
@@ -263,6 +267,7 @@ def create_supplier_return(
 )
 def list_supplier_returns(
     service: SupplierReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
 ) -> list[SupplierReturnResponse]:
     """
     Lista todas as remessas aos fornecedores
@@ -289,6 +294,7 @@ def list_supplier_returns(
 )
 def get_supplier_return(
     service: SupplierReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_return_id: int = Path(
         ...,
         gt=0,
@@ -333,6 +339,7 @@ def add_supplier_return_item(
     ],
     session: SessionDependency,
     service: SupplierReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_return_id: int = Path(
         ...,
         gt=0,
@@ -395,6 +402,7 @@ def add_supplier_return_item(
 )
 def list_supplier_return_items(
     service: SupplierReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_return_id: int = Path(
         ...,
         gt=0,
@@ -446,6 +454,7 @@ def list_supplier_return_items(
 )
 def get_supplier_return_available_quantity(
     service: SupplierReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_item_id: int = Path(
         ...,
         gt=0,

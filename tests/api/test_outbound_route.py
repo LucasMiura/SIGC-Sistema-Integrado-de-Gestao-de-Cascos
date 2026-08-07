@@ -18,6 +18,12 @@ from src.services.outbound_service import (
     OutboundService,
 )
 from src.models.outbound_item import OutboundItem
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_SELLER,
+)
 
 
 def create_outbound(
@@ -66,8 +72,21 @@ def app(
 ) -> Generator[FastAPI, None, None]:
     application = FastAPI()
 
-    application.include_router(
-        router
+    seller_user = Mock()
+    seller_user.id = 1
+    seller_user.username = "vendedor"
+    seller_user.role_id = 3
+    seller_user.is_active = 1
+
+    seller_role = Mock()
+    seller_role.id = 3
+    seller_role.name = ROLE_SELLER
+
+    def override_get_current_user():
+        return seller_user
+
+    session.scalar.return_value = (
+        seller_role
     )
 
     application.dependency_overrides[
@@ -77,6 +96,14 @@ def app(
     application.dependency_overrides[
         get_outbound_service
     ] = lambda: service
+
+    application.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    application.include_router(
+        router
+    )
 
     yield application
 
@@ -108,7 +135,6 @@ def test_should_create_outbound(
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
             "sales_invoice_number": None,
-            "created_by": 1,
             "status": "ACTIVE",
         },
     )
@@ -163,7 +189,6 @@ def test_should_create_outbound_with_sales_invoice(
         json={
             "destination_type": "SALE",
             "sales_invoice_number": "NFV-12345",
-            "created_by": 1,
         },
     )
 
@@ -209,7 +234,6 @@ def test_should_use_active_status_by_default_on_create(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
-            "created_by": 1,
         },
     )
 
@@ -242,7 +266,6 @@ def test_should_return_400_when_reference_numbers_are_missing(
         "/outbounds",
         json={
             "destination_type": "WORK_ORDER",
-            "created_by": 1,
         },
     )
 
@@ -281,7 +304,6 @@ def test_should_return_400_when_work_order_is_duplicated(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
-            "created_by": 1,
         },
     )
 
@@ -318,7 +340,6 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
         json={
             "destination_type": "SALE",
             "sales_invoice_number": "NFV-12345",
-            "created_by": 1,
         },
     )
 
@@ -346,7 +367,6 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
             {
                 "destination_type": "",
                 "work_order_number": "OS-12345",
-                "created_by": 1,
             },
             "destination_type",
         ),
@@ -354,23 +374,6 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
             {
                 "destination_type": "WORK_ORDER",
                 "work_order_number": "OS-12345",
-                "created_by": 0,
-            },
-            "created_by",
-        ),
-        (
-            {
-                "destination_type": "WORK_ORDER",
-                "work_order_number": "OS-12345",
-                "created_by": -1,
-            },
-            "created_by",
-        ),
-        (
-            {
-                "destination_type": "WORK_ORDER",
-                "work_order_number": "OS-12345",
-                "created_by": 1,
                 "status": "PENDING",
             },
             "status",
@@ -407,7 +410,6 @@ def test_should_return_422_when_create_payload_has_extra_field(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
-            "created_by": 1,
             "unexpected_field": "valor",
         },
     )
@@ -443,7 +445,6 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
             json={
                 "destination_type": "WORK_ORDER",
                 "work_order_number": "OS-12345",
-                "created_by": 1,
             },
         )
 

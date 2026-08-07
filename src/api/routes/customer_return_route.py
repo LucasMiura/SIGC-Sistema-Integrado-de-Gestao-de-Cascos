@@ -38,6 +38,9 @@ from src.schemas.customer_return_schema import (
 from src.services.customer_return_service import (
     CustomerReturnService,
 )
+from src.api.dependencies.authorization import (
+    OperationalUserDependency,
+)
 
 
 router = APIRouter(
@@ -164,6 +167,7 @@ def create_customer_return(
     ],
     session: SessionDependency,
     service: CustomerReturnServiceDependency,
+    current_user: OperationalUserDependency,
 ) -> CustomerReturnResponse:
     """
     Registra uma nova devolução de casco
@@ -185,7 +189,7 @@ def create_customer_return(
                 customer_name=(
                     payload.customer_name
                 ),
-                created_by=payload.created_by,
+                created_by=current_user.id,
                 status=payload.status.value,
                 notes=payload.notes,
             )
@@ -217,6 +221,7 @@ def create_customer_return(
 )
 def list_customer_returns(
     service: CustomerReturnServiceDependency,
+    _current_user: OperationalUserDependency,
 ) -> list[CustomerReturnResponse]:
     """
     Lista todas as devoluções de clientes
@@ -243,6 +248,7 @@ def list_customer_returns(
 )
 def get_customer_return(
     service: CustomerReturnServiceDependency,
+    _current_user: OperationalUserDependency,
     customer_return_id: int = Path(
         ...,
         gt=0,
@@ -287,6 +293,7 @@ def add_customer_return_item(
     ],
     session: SessionDependency,
     service: CustomerReturnServiceDependency,
+    _current_user: OperationalUserDependency,
     customer_return_id: int = Path(
         ...,
         gt=0,
@@ -347,6 +354,7 @@ def add_customer_return_item(
 )
 def list_customer_return_items(
     service: CustomerReturnServiceDependency,
+    _current_user: OperationalUserDependency,
     customer_return_id: int = Path(
         ...,
         gt=0,

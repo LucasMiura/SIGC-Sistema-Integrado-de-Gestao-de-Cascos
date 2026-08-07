@@ -11,6 +11,9 @@ from src.schemas.purchase_tracking_schema import (
 from src.services.purchase_tracking_service import (
     PurchaseTrackingService,
 )
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 
 
 router = APIRouter(
@@ -54,6 +57,7 @@ PurchaseTrackingServiceDependency = Annotated[
 )
 def get_purchase_tracking(
     service: PurchaseTrackingServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,

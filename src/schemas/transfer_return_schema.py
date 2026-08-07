@@ -72,18 +72,6 @@ class TransferReturnCreateRequest(BaseModel):
         ],
     )
 
-    created_by: int = Field(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do usuário responsável "
-            "pela devolução à filial"
-        ),
-        examples=[
-            1,
-        ],
-    )
-
     status: TransferReturnStatus = Field(
         default=TransferReturnStatus.ACTIVE,
         description=(

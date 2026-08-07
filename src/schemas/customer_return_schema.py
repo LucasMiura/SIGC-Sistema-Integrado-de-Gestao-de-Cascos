@@ -58,14 +58,6 @@ class CustomerReturnCreateRequest(BaseModel):
         ],
     )
 
-    created_by: int = Field(
-        ...,
-        gt=0,
-        description="Identificador do usuário responsável",
-        examples=[
-            1,
-        ],
-    )
 
     status: CustomerReturnStatus = Field(
         default=CustomerReturnStatus.ACTIVE,

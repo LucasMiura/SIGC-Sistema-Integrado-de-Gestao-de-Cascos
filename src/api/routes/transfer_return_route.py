@@ -39,6 +39,9 @@ from src.schemas.transfer_return_schema import (
 from src.services.transfer_return_service import (
     TransferReturnService,
 )
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 
 
 router = APIRouter(
@@ -190,6 +193,7 @@ def create_transfer_return(
     ],
     session: SessionDependency,
     service: TransferReturnServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
 ) -> TransferReturnResponse:
     """
     Registra uma nova remessa de cascos
@@ -207,7 +211,7 @@ def create_transfer_return(
                     request.dispatch_invoice_series
                 ),
                 issue_date=request.issue_date,
-                created_by=request.created_by,
+                created_by=current_user.id,
                 status=request.status.value,
                 notes=request.notes,
             )
@@ -243,6 +247,7 @@ def create_transfer_return(
 )
 def list_transfer_returns(
     service: TransferReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
 ) -> list[TransferReturnResponse]:
     """
     Lista todas as devoluções de cascos
@@ -271,6 +276,7 @@ def list_transfer_returns(
 )
 def list_transfer_returns_by_transfer(
     service: TransferReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,
@@ -321,6 +327,7 @@ def list_transfer_returns_by_transfer(
 )
 def get_transfer_return_available_quantity(
     service: TransferReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_item_id: int = Path(
         ...,
         gt=0,
@@ -368,6 +375,7 @@ def get_transfer_return_available_quantity(
 )
 def get_transfer_return(
     service: TransferReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_return_id: int = Path(
         ...,
         gt=0,
@@ -412,6 +420,7 @@ def add_transfer_return_item(
     ],
     session: SessionDependency,
     service: TransferReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_return_id: int = Path(
         ...,
         gt=0,
@@ -472,6 +481,7 @@ def add_transfer_return_item(
 )
 def list_transfer_return_items(
     service: TransferReturnServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_return_id: int = Path(
         ...,
         gt=0,

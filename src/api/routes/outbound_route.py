@@ -44,6 +44,9 @@ from src.schemas.outbound_schema import (
 from src.services.outbound_service import (
     OutboundService,
 )
+from src.api.dependencies.authorization import (
+    AdminOrSellerUserDependency,
+)
 
 
 router = APIRouter(
@@ -180,6 +183,7 @@ def create_outbound(
     ],
     session: SessionDependency,
     service: OutboundServiceDependency,
+    current_user: AdminOrSellerUserDependency,
 ) -> OutboundResponse:
     """
     Cadastra uma nova saída de peças.
@@ -199,7 +203,7 @@ def create_outbound(
             sales_invoice_number=(
                 payload.sales_invoice_number
             ),
-            created_by=payload.created_by,
+            created_by=current_user.id,
             status=payload.status.value,
         )
 
@@ -227,6 +231,7 @@ def create_outbound(
 )
 def list_outbounds(
     service: OutboundServiceDependency,
+    _current_user: AdminOrSellerUserDependency,
     outbound_status: OutboundStatus | None = Query(
         default=None,
         alias="status",
@@ -278,6 +283,7 @@ def list_outbounds(
 )
 def get_outbound(
     service: OutboundServiceDependency,
+    _current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -316,6 +322,7 @@ def update_outbound(
     ],
     session: SessionDependency,
     service: OutboundServiceDependency,
+    _current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -376,6 +383,7 @@ def update_outbound(
 def cancel_outbound(
     session: SessionDependency,
     service: OutboundServiceDependency,
+    _current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -423,6 +431,7 @@ def add_outbound_item(
     ],
     session: SessionDependency,
     service: OutboundServiceDependency,
+    _current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -471,6 +480,7 @@ def add_outbound_item(
 )
 def list_outbound_items(
     service: OutboundServiceDependency,
+    _current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,

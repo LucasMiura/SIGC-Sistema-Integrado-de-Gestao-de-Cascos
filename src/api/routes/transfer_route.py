@@ -30,6 +30,9 @@ from src.schemas.transfer_schema import (
 from src.services.transfer_service import (
     TransferService,
 )
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 
 
 router = APIRouter(
@@ -152,6 +155,7 @@ def create_transfer(
     ],
     session: SessionDependency,
     service: TransferServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
 ) -> TransferResponse:
     """
     Registra uma transferência recebida
@@ -170,7 +174,7 @@ def create_transfer(
                 request.invoice_number
             ),
             issue_date=request.issue_date,
-            created_by=request.created_by,
+            created_by=current_user.id,
             status=request.status.value,
         )
 
@@ -202,6 +206,7 @@ def create_transfer(
 )
 def list_transfers(
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
 ) -> list[TransferResponse]:
     """
     Lista todas as transferências
@@ -226,6 +231,7 @@ def list_transfers(
 )
 def get_transfer(
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,
@@ -267,6 +273,7 @@ def add_transfer_item(
     ],
     session: SessionDependency,
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,
@@ -320,6 +327,7 @@ def add_transfer_item(
 )
 def list_transfer_items(
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,
@@ -360,6 +368,7 @@ def list_transfer_items(
 )
 def get_transfer_item(
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_item_id: int = Path(
         ...,
         gt=0,
@@ -401,6 +410,7 @@ def get_transfer_item(
 )
 def get_available_quantity(
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_item_id: int = Path(
         ...,
         gt=0,
@@ -440,134 +450,6 @@ def get_available_quantity(
 
 
 @router.post(
-    (
-        "/items/{transfer_item_id}/"
-        "reduce/{quantity}"
-    ),
-    response_model=TransferItemResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Reduzir saldo disponível",
-)
-def reduce_available_quantity(
-    session: SessionDependency,
-    service: TransferServiceDependency,
-    transfer_item_id: int = Path(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do item "
-            "da transferência"
-        ),
-    ),
-    quantity: int = Path(
-        ...,
-        gt=0,
-        description=(
-            "Quantidade a ser movimentada"
-        ),
-    ),
-) -> TransferItemResponse:
-    """
-    Reduz o saldo disponível de um item.
-
-    Este endpoint será usado posteriormente
-    pela integração com o módulo de saídas.
-    """
-
-    try:
-        transfer_item = (
-            service.reduce_available_quantity(
-                transfer_item_id=(
-                    transfer_item_id
-                ),
-                quantity=quantity,
-            )
-        )
-
-        session.commit()
-        session.refresh(
-            transfer_item
-        )
-
-        return TransferItemResponse.model_validate(
-            transfer_item
-        )
-
-    except ValueError as error:
-        session.rollback()
-        raise_transfer_http_exception(
-            error
-        )
-
-    except Exception:
-        session.rollback()
-        raise
-
-
-@router.post(
-    (
-        "/items/{transfer_item_id}/"
-        "restore/{quantity}"
-    ),
-    response_model=TransferItemResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Restaurar saldo disponível",
-)
-def restore_available_quantity(
-    session: SessionDependency,
-    service: TransferServiceDependency,
-    transfer_item_id: int = Path(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do item "
-            "da transferência"
-        ),
-    ),
-    quantity: int = Path(
-        ...,
-        gt=0,
-        description=(
-            "Quantidade a ser restaurada"
-        ),
-    ),
-) -> TransferItemResponse:
-    """
-    Restaura o saldo disponível de um item
-    quando uma movimentação for revertida.
-    """
-
-    try:
-        transfer_item = (
-            service.restore_available_quantity(
-                transfer_item_id=(
-                    transfer_item_id
-                ),
-                quantity=quantity,
-            )
-        )
-
-        session.commit()
-        session.refresh(
-            transfer_item
-        )
-
-        return TransferItemResponse.model_validate(
-            transfer_item
-        )
-
-    except ValueError as error:
-        session.rollback()
-        raise_transfer_http_exception(
-            error
-        )
-
-    except Exception:
-        session.rollback()
-        raise
-
-
-@router.post(
     "/{transfer_id}/cancel",
     response_model=TransferResponse,
     status_code=status.HTTP_200_OK,
@@ -576,6 +458,7 @@ def restore_available_quantity(
 def cancel_transfer(
     session: SessionDependency,
     service: TransferServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,

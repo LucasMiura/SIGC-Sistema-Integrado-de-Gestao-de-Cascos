@@ -71,18 +71,6 @@ class SupplierReturnCreateRequest(BaseModel):
         ],
     )
 
-    created_by: int = Field(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do usuário responsável "
-            "pela remessa"
-        ),
-        examples=[
-            1,
-        ],
-    )
-
     status: SupplierReturnStatus = Field(
         default=SupplierReturnStatus.ACTIVE,
         description="Status inicial da remessa",

@@ -14,6 +14,12 @@ from src.database.connection import get_session
 from src.services.transfer_service import (
     TransferService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_BUYER,
+)
 
 
 @pytest.fixture
@@ -39,12 +45,23 @@ def app(
     session: Mock,
     service: Mock,
 ) -> FastAPI:
-    """Cria uma aplicação isolada para os testes."""
+    """
+    Cria uma aplicação isolada simulando
+    um Comprador autenticado.
+    """
 
     test_app = FastAPI()
 
-    test_app.include_router(
-        router
+    buyer_user = SimpleNamespace(
+        id=30,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name=ROLE_BUYER,
     )
 
     def override_get_session():
@@ -53,6 +70,13 @@ def app(
     def override_get_transfer_service():
         return service
 
+    def override_get_current_user():
+        return buyer_user
+
+    session.scalar.return_value = (
+        buyer_role
+    )
+
     test_app.dependency_overrides[
         get_session
     ] = override_get_session
@@ -60,6 +84,14 @@ def app(
     test_app.dependency_overrides[
         get_transfer_service
     ] = override_get_transfer_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
 
     return test_app
 
@@ -134,7 +166,6 @@ def test_should_create_transfer(
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
             "issue_date": "2026-08-05",
-            "created_by": 30,
             "status": "ACTIVE",
         },
     )
@@ -183,7 +214,6 @@ def test_should_create_transfer_with_default_status(
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
             "issue_date": "2026-08-05",
-            "created_by": 30,
         },
     )
 
@@ -215,7 +245,6 @@ def test_should_create_transfer_with_default_status(
                 "destination_branch_id": 1,
                 "invoice_number": "NF-TRANSFER-100",
                 "issue_date": "2026-08-05",
-                "created_by": 30,
             },
             "origin_branch_id",
         ),
@@ -224,7 +253,6 @@ def test_should_create_transfer_with_default_status(
                 "origin_branch_id": 2,
                 "invoice_number": "NF-TRANSFER-100",
                 "issue_date": "2026-08-05",
-                "created_by": 30,
             },
             "destination_branch_id",
         ),
@@ -233,7 +261,6 @@ def test_should_create_transfer_with_default_status(
                 "origin_branch_id": 2,
                 "destination_branch_id": 1,
                 "issue_date": "2026-08-05",
-                "created_by": 30,
             },
             "invoice_number",
         ),
@@ -242,18 +269,8 @@ def test_should_create_transfer_with_default_status(
                 "origin_branch_id": 2,
                 "destination_branch_id": 1,
                 "invoice_number": "NF-TRANSFER-100",
-                "created_by": 30,
             },
             "issue_date",
-        ),
-        (
-            {
-                "origin_branch_id": 2,
-                "destination_branch_id": 1,
-                "invoice_number": "NF-TRANSFER-100",
-                "issue_date": "2026-08-05",
-            },
-            "created_by",
         ),
     ],
 )
@@ -300,14 +317,6 @@ def test_should_return_422_when_required_create_field_is_missing(
             "destination_branch_id",
             -1,
         ),
-        (
-            "created_by",
-            0,
-        ),
-        (
-            "created_by",
-            -1,
-        ),
     ],
 )
 def test_should_return_422_when_create_id_is_invalid(
@@ -322,7 +331,6 @@ def test_should_return_422_when_create_id_is_invalid(
         "destination_branch_id": 1,
         "invoice_number": "NF-TRANSFER-100",
         "issue_date": "2026-08-05",
-        "created_by": 30,
     }
 
     payload[field] = value
@@ -406,7 +414,6 @@ def test_should_return_422_when_create_status_is_invalid(
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
             "issue_date": "2026-08-05",
-            "created_by": 30,
             "status": "FINISHED",
         },
     )
@@ -430,8 +437,7 @@ def test_should_return_422_when_create_payload_has_extra_field(
             "origin_branch_id": 2,
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
-            "issue_date": "2026-08-05",
-            "created_by": 30,
+            "issue_date": "2026-08-05",           
             "unexpected_field": "value",
         },
     )
@@ -465,7 +471,6 @@ def test_should_return_409_when_transfer_invoice_is_duplicated(
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
             "issue_date": "2026-08-05",
-            "created_by": 30,
         },
     )
 
@@ -514,7 +519,6 @@ def test_should_return_400_when_business_error_occurs_on_create(
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
             "issue_date": "2026-08-05",
-            "created_by": 30,
         },
     )
 
@@ -547,7 +551,6 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
             "destination_branch_id": 1,
             "invoice_number": "NF-TRANSFER-100",
             "issue_date": "2026-08-05",
-            "created_by": 30,
         },
     )
 
@@ -1227,298 +1230,6 @@ def test_should_return_422_when_transfer_item_id_is_invalid_on_available_quantit
     assert response.status_code == 422
 
     service.get_available_quantity.assert_not_called()
-
-
-def test_should_reduce_available_quantity(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-) -> None:
-    transfer_item = create_transfer_item(
-        quantity_available=6,
-    )
-
-    service.reduce_available_quantity.return_value = (
-        transfer_item
-    )
-
-    response = client.post(
-        "/transfers/items/20/reduce/4"
-    )
-
-    assert response.status_code == 200
-
-    assert response.json()[
-        "quantity_available"
-    ] == 6
-
-    service.reduce_available_quantity.assert_called_once_with(
-        transfer_item_id=20,
-        quantity=4,
-    )
-
-    session.commit.assert_called_once_with()
-    session.refresh.assert_called_once_with(
-        transfer_item
-    )
-    session.rollback.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    "message",
-    [
-        "Item de transferência não encontrado.",
-        (
-            "A quantidade informada é superior "
-            "ao saldo disponível do item de "
-            "transferência."
-        ),
-    ],
-)
-def test_should_convert_business_error_on_reduce(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-    message: str,
-) -> None:
-    service.reduce_available_quantity.side_effect = (
-        ValueError(message)
-    )
-
-    response = client.post(
-        "/transfers/items/20/reduce/4"
-    )
-
-    expected_status = (
-        404
-        if message
-        == "Item de transferência não encontrado."
-        else 400
-    )
-
-    assert response.status_code == expected_status
-
-    assert response.json() == {
-        "detail": message,
-    }
-
-    session.rollback.assert_called_once_with()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    (
-        "transfer_item_id",
-        "quantity",
-    ),
-    [
-        (
-            0,
-            4,
-        ),
-        (
-            -1,
-            4,
-        ),
-        (
-            20,
-            0,
-        ),
-        (
-            20,
-            -1,
-        ),
-    ],
-)
-def test_should_return_422_when_reduce_path_parameter_is_invalid(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-    transfer_item_id: int,
-    quantity: int,
-) -> None:
-    response = client.post(
-        (
-            "/transfers/items/"
-            f"{transfer_item_id}/reduce/{quantity}"
-        )
-    )
-
-    assert response.status_code == 422
-
-    service.reduce_available_quantity.assert_not_called()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
-    session.rollback.assert_not_called()
-
-
-def test_should_rollback_when_unexpected_error_occurs_on_reduce(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-) -> None:
-    service.reduce_available_quantity.side_effect = (
-        RuntimeError(
-            "Erro inesperado."
-        )
-    )
-
-    response = client.post(
-        "/transfers/items/20/reduce/4"
-    )
-
-    assert response.status_code == 500
-
-    session.rollback.assert_called_once_with()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
-
-
-def test_should_restore_available_quantity(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-) -> None:
-    transfer_item = create_transfer_item(
-        quantity_available=10,
-    )
-
-    service.restore_available_quantity.return_value = (
-        transfer_item
-    )
-
-    response = client.post(
-        "/transfers/items/20/restore/4"
-    )
-
-    assert response.status_code == 200
-
-    assert response.json()[
-        "quantity_available"
-    ] == 10
-
-    service.restore_available_quantity.assert_called_once_with(
-        transfer_item_id=20,
-        quantity=4,
-    )
-
-    session.commit.assert_called_once_with()
-    session.refresh.assert_called_once_with(
-        transfer_item
-    )
-    session.rollback.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    "message",
-    [
-        "Item de transferência não encontrado.",
-        (
-            "A quantidade restaurada não pode "
-            "ultrapassar a quantidade originalmente "
-            "recebida."
-        ),
-    ],
-)
-def test_should_convert_business_error_on_restore(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-    message: str,
-) -> None:
-    service.restore_available_quantity.side_effect = (
-        ValueError(message)
-    )
-
-    response = client.post(
-        "/transfers/items/20/restore/4"
-    )
-
-    expected_status = (
-        404
-        if message
-        == "Item de transferência não encontrado."
-        else 400
-    )
-
-    assert response.status_code == expected_status
-
-    assert response.json() == {
-        "detail": message,
-    }
-
-    session.rollback.assert_called_once_with()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    (
-        "transfer_item_id",
-        "quantity",
-    ),
-    [
-        (
-            0,
-            4,
-        ),
-        (
-            -1,
-            4,
-        ),
-        (
-            20,
-            0,
-        ),
-        (
-            20,
-            -1,
-        ),
-    ],
-)
-def test_should_return_422_when_restore_path_parameter_is_invalid(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-    transfer_item_id: int,
-    quantity: int,
-) -> None:
-    response = client.post(
-        (
-            "/transfers/items/"
-            f"{transfer_item_id}/restore/{quantity}"
-        )
-    )
-
-    assert response.status_code == 422
-
-    service.restore_available_quantity.assert_not_called()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
-    session.rollback.assert_not_called()
-
-
-def test_should_rollback_when_unexpected_error_occurs_on_restore(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-) -> None:
-    service.restore_available_quantity.side_effect = (
-        RuntimeError(
-            "Erro inesperado."
-        )
-    )
-
-    response = client.post(
-        "/transfers/items/20/restore/4"
-    )
-
-    assert response.status_code == 500
-
-    session.rollback.assert_called_once_with()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
 
 
 def test_should_cancel_transfer(

@@ -14,6 +14,12 @@ from src.database.connection import get_session
 from src.services.customer_return_service import (
     CustomerReturnService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_SELLER,
+)
 
 
 @pytest.fixture
@@ -44,13 +50,22 @@ def app(
     service: Mock,
 ) -> FastAPI:
     """
-    Cria uma aplicação isolada para os testes.
+    Cria uma aplicação isolada simulando
+    um Vendedor autenticado.
     """
 
     test_app = FastAPI()
 
-    test_app.include_router(
-        router
+    seller_user = SimpleNamespace(
+        id=30,
+        username="vendedor",
+        role_id=3,
+        is_active=1,
+    )
+
+    seller_role = SimpleNamespace(
+        id=3,
+        name=ROLE_SELLER,
     )
 
     def override_get_session():
@@ -59,6 +74,13 @@ def app(
     def override_get_customer_return_service():
         return service
 
+    def override_get_current_user():
+        return seller_user
+
+    session.scalar.return_value = (
+        seller_role
+    )
+
     test_app.dependency_overrides[
         get_session
     ] = override_get_session
@@ -66,6 +88,14 @@ def app(
     test_app.dependency_overrides[
         get_customer_return_service
     ] = override_get_customer_return_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
 
     return test_app
 
@@ -149,7 +179,6 @@ def test_should_create_customer_return(
             "return_type": "WORK_ORDER",
             "reference_number": "OS-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
             "status": "ACTIVE",
             "notes": "Devolução de teste.",
         },
@@ -207,7 +236,6 @@ def test_should_create_sale_customer_return(
             "return_type": "SALE",
             "reference_number": "NFV-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
         },
     )
 
@@ -256,7 +284,6 @@ def test_should_create_customer_return_without_notes(
             "return_type": "WORK_ORDER",
             "reference_number": "OS-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
         },
     )
 
@@ -284,7 +311,6 @@ def test_should_create_customer_return_without_notes(
             {
                 "reference_number": "OS-12345",
                 "customer_name": "Cliente Teste",
-                "created_by": 30,
             },
             "return_type",
         ),
@@ -292,7 +318,6 @@ def test_should_create_customer_return_without_notes(
             {
                 "return_type": "WORK_ORDER",
                 "customer_name": "Cliente Teste",
-                "created_by": 30,
             },
             "reference_number",
         ),
@@ -300,17 +325,8 @@ def test_should_create_customer_return_without_notes(
             {
                 "return_type": "WORK_ORDER",
                 "reference_number": "OS-12345",
-                "created_by": 30,
             },
             "customer_name",
-        ),
-        (
-            {
-                "return_type": "WORK_ORDER",
-                "reference_number": "OS-12345",
-                "customer_name": "Cliente Teste",
-            },
-            "created_by",
         ),
     ],
 )
@@ -329,52 +345,6 @@ def test_should_return_422_when_required_create_field_is_missing(
     assert response.status_code == 422
 
     assert missing_field in response.text
-
-    service.create_customer_return.assert_not_called()
-
-    session.commit.assert_not_called()
-    session.rollback.assert_not_called()
-    session.refresh.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    (
-        "field",
-        "value",
-    ),
-    [
-        (
-            "created_by",
-            0,
-        ),
-        (
-            "created_by",
-            -1,
-        ),
-    ],
-)
-def test_should_return_422_when_create_id_is_invalid(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-    field: str,
-    value: int,
-) -> None:
-    payload = {
-        "return_type": "WORK_ORDER",
-        "reference_number": "OS-12345",
-        "customer_name": "Cliente Teste",
-        "created_by": 30,
-    }
-
-    payload[field] = value
-
-    response = client.post(
-        "/customer-returns",
-        json=payload,
-    )
-
-    assert response.status_code == 422
 
     service.create_customer_return.assert_not_called()
 
@@ -410,7 +380,6 @@ def test_should_return_422_when_create_enum_is_invalid(
         "return_type": "WORK_ORDER",
         "reference_number": "OS-12345",
         "customer_name": "Cliente Teste",
-        "created_by": 30,
         "status": "ACTIVE",
     }
 
@@ -465,7 +434,6 @@ def test_should_return_422_when_required_text_is_empty(
         "return_type": "WORK_ORDER",
         "reference_number": "OS-12345",
         "customer_name": "Cliente Teste",
-        "created_by": 30,
     }
 
     payload[field] = value
@@ -495,7 +463,6 @@ def test_should_return_422_when_create_payload_has_extra_field(
             "return_type": "WORK_ORDER",
             "reference_number": "OS-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
             "unexpected_field": "value",
         },
     )
@@ -532,7 +499,6 @@ def test_should_return_404_when_related_resource_is_not_found_on_create(
             "return_type": "WORK_ORDER",
             "reference_number": "OS-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
         },
     )
 
@@ -578,7 +544,6 @@ def test_should_return_400_when_business_error_occurs_on_create(
             "return_type": "WORK_ORDER",
             "reference_number": "OS-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
         },
     )
 
@@ -611,7 +576,6 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
             "return_type": "WORK_ORDER",
             "reference_number": "OS-12345",
             "customer_name": "Cliente Teste",
-            "created_by": 30,
         },
     )
 
@@ -1140,3 +1104,65 @@ def test_should_return_422_when_customer_return_id_is_invalid_on_list_items(
     assert response.status_code == 422
 
     service.list_customer_return_items.assert_not_called()
+
+def test_should_allow_buyer_to_list_customer_returns(
+    session: Mock,
+    service: Mock,
+) -> None:
+    test_app = FastAPI()
+
+    buyer_user = SimpleNamespace(
+        id=20,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name="Comprador",
+    )
+
+    def override_get_session():
+        yield session
+
+    def override_get_customer_return_service():
+        return service
+
+    def override_get_current_user():
+        return buyer_user
+
+    session.scalar.return_value = (
+        buyer_role
+    )
+
+    service.list_customer_returns.return_value = []
+
+    test_app.dependency_overrides[
+        get_session
+    ] = override_get_session
+
+    test_app.dependency_overrides[
+        get_customer_return_service
+    ] = override_get_customer_return_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
+
+    client = TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    )
+
+    response = client.get(
+        "/customer-returns"
+    )
+
+    assert response.status_code == 200
+
+    service.list_customer_returns.assert_called_once_with()
