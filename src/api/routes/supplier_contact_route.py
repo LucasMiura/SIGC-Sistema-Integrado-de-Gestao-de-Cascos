@@ -9,6 +9,9 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 from src.database.connection import get_session
 from src.repositories.supplier_contact_repository import (
     SupplierContactRepository,
@@ -41,19 +44,28 @@ SessionDependency = Annotated[
 def get_supplier_contact_service(
     session: SessionDependency,
 ) -> SupplierContactService:
-    """Monta o serviço com seus repositories."""
+    """
+    Monta o serviço de contatos de fornecedores
+    com seus repositórios.
+    """
 
-    contact_repository = SupplierContactRepository(
-        session
+    contact_repository = (
+        SupplierContactRepository(
+            session
+        )
     )
 
-    supplier_repository = SupplierRepository(
-        session
+    supplier_repository = (
+        SupplierRepository(
+            session
+        )
     )
 
     return SupplierContactService(
         repository=contact_repository,
-        supplier_repository=supplier_repository,
+        supplier_repository=(
+            supplier_repository
+        ),
     )
 
 
@@ -66,7 +78,10 @@ SupplierContactServiceDependency = Annotated[
 def handle_contact_error(
     error: ValueError,
 ) -> HTTPException:
-    """Converte erros de negócio em erros HTTP."""
+    """
+    Converte erros de negócio
+    em respostas HTTP.
+    """
 
     message = str(error)
 
@@ -77,20 +92,27 @@ def handle_contact_error(
 
     if message in not_found_messages:
         return HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
             detail=message,
         )
 
     if message == (
-        "O contato não pertence ao fornecedor informado."
+        "O contato não pertence ao "
+        "fornecedor informado."
     ):
         return HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
             detail=message,
         )
 
     return HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
+        status_code=(
+            status.HTTP_400_BAD_REQUEST
+        ),
         detail=message,
     )
 
@@ -105,13 +127,19 @@ def create_supplier_contact(
     request: SupplierContactCreateRequest,
     service: SupplierContactServiceDependency,
     session: SessionDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
         description="Identificador do fornecedor",
     ),
 ) -> SupplierContactResponse:
-    """Cadastra um novo contato para o fornecedor."""
+    """
+    Cadastra um novo contato.
+
+    Operação permitida ao Administrador Master
+    e ao Comprador.
+    """
 
     try:
         contact = service.create(
@@ -124,15 +152,23 @@ def create_supplier_contact(
         )
 
         session.commit()
-        session.refresh(contact)
 
-        return SupplierContactResponse.model_validate(
+        session.refresh(
             contact
+        )
+
+        return (
+            SupplierContactResponse.model_validate(
+                contact
+            )
         )
 
     except ValueError as error:
         session.rollback()
-        raise handle_contact_error(error) from error
+
+        raise handle_contact_error(
+            error
+        ) from error
 
     except Exception:
         session.rollback()
@@ -141,19 +177,24 @@ def create_supplier_contact(
 
 @router.get(
     "",
-    response_model=list[SupplierContactResponse],
+    response_model=list[
+        SupplierContactResponse
+    ],
     status_code=status.HTTP_200_OK,
     summary="Listar contatos de um fornecedor",
 )
 def list_supplier_contacts(
     service: SupplierContactServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
         description="Identificador do fornecedor",
     ),
 ) -> list[SupplierContactResponse]:
-    """Lista todos os contatos do fornecedor."""
+    """
+    Lista todos os contatos do fornecedor.
+    """
 
     try:
         contacts = service.list_by_supplier(
@@ -168,7 +209,9 @@ def list_supplier_contacts(
         ]
 
     except ValueError as error:
-        raise handle_contact_error(error) from error
+        raise handle_contact_error(
+            error
+        ) from error
 
 
 @router.get(
@@ -179,6 +222,7 @@ def list_supplier_contacts(
 )
 def get_supplier_contact(
     service: SupplierContactServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -190,7 +234,9 @@ def get_supplier_contact(
         description="Identificador do contato",
     ),
 ) -> SupplierContactResponse:
-    """Consulta um contato específico do fornecedor."""
+    """
+    Consulta um contato específico.
+    """
 
     try:
         contact = service.get_required(
@@ -198,12 +244,16 @@ def get_supplier_contact(
             contact_id=contact_id,
         )
 
-        return SupplierContactResponse.model_validate(
-            contact
+        return (
+            SupplierContactResponse.model_validate(
+                contact
+            )
         )
 
     except ValueError as error:
-        raise handle_contact_error(error) from error
+        raise handle_contact_error(
+            error
+        ) from error
 
 
 @router.put(
@@ -216,6 +266,7 @@ def update_supplier_contact(
     request: SupplierContactUpdateRequest,
     service: SupplierContactServiceDependency,
     session: SessionDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -227,7 +278,9 @@ def update_supplier_contact(
         description="Identificador do contato",
     ),
 ) -> SupplierContactResponse:
-    """Atualiza somente os campos enviados."""
+    """
+    Atualiza somente os campos enviados.
+    """
 
     try:
         update_data = request.model_dump(
@@ -241,15 +294,23 @@ def update_supplier_contact(
         )
 
         session.commit()
-        session.refresh(contact)
 
-        return SupplierContactResponse.model_validate(
+        session.refresh(
             contact
+        )
+
+        return (
+            SupplierContactResponse.model_validate(
+                contact
+            )
         )
 
     except ValueError as error:
         session.rollback()
-        raise handle_contact_error(error) from error
+
+        raise handle_contact_error(
+            error
+        ) from error
 
     except Exception:
         session.rollback()
@@ -265,6 +326,7 @@ def update_supplier_contact(
 def activate_supplier_contact(
     service: SupplierContactServiceDependency,
     session: SessionDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -276,7 +338,9 @@ def activate_supplier_contact(
         description="Identificador do contato",
     ),
 ) -> SupplierContactResponse:
-    """Ativa um contato inativo."""
+    """
+    Ativa um contato inativo.
+    """
 
     try:
         contact = service.activate(
@@ -285,15 +349,23 @@ def activate_supplier_contact(
         )
 
         session.commit()
-        session.refresh(contact)
 
-        return SupplierContactResponse.model_validate(
+        session.refresh(
             contact
+        )
+
+        return (
+            SupplierContactResponse.model_validate(
+                contact
+            )
         )
 
     except ValueError as error:
         session.rollback()
-        raise handle_contact_error(error) from error
+
+        raise handle_contact_error(
+            error
+        ) from error
 
     except Exception:
         session.rollback()
@@ -309,6 +381,7 @@ def activate_supplier_contact(
 def deactivate_supplier_contact(
     service: SupplierContactServiceDependency,
     session: SessionDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -320,7 +393,10 @@ def deactivate_supplier_contact(
         description="Identificador do contato",
     ),
 ) -> SupplierContactResponse:
-    """Desativa um contato ativo."""
+    """
+    Desativa um contato sem eliminar
+    seu histórico.
+    """
 
     try:
         contact = service.deactivate(
@@ -329,15 +405,23 @@ def deactivate_supplier_contact(
         )
 
         session.commit()
-        session.refresh(contact)
 
-        return SupplierContactResponse.model_validate(
+        session.refresh(
             contact
+        )
+
+        return (
+            SupplierContactResponse.model_validate(
+                contact
+            )
         )
 
     except ValueError as error:
         session.rollback()
-        raise handle_contact_error(error) from error
+
+        raise handle_contact_error(
+            error
+        ) from error
 
     except Exception:
         session.rollback()

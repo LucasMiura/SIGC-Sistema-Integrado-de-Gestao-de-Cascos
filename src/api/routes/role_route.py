@@ -10,6 +10,9 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.authorization import (
+    AdminUserDependency,
+)
 from src.database.connection import get_session
 from src.repositories.role_repository import (
     RoleRepository,
@@ -68,7 +71,9 @@ def raise_role_http_exception(
 
     message = str(error)
 
-    if message == "Perfil de acesso não encontrado.":
+    if message == (
+        "Perfil de acesso não encontrado."
+    ):
         raise HTTPException(
             status_code=(
                 status.HTTP_404_NOT_FOUND
@@ -107,9 +112,12 @@ def create_role(
     ],
     session: SessionDependency,
     service: RoleServiceDependency,
+    _current_user: AdminUserDependency,
 ) -> RoleResponse:
     """
     Cadastra um novo perfil de acesso.
+
+    Operação exclusiva do Administrador Master.
     """
 
     try:
@@ -119,6 +127,7 @@ def create_role(
         )
 
         session.commit()
+
         session.refresh(
             role
         )
@@ -147,9 +156,12 @@ def create_role(
 )
 def list_roles(
     service: RoleServiceDependency,
+    _current_user: AdminUserDependency,
 ) -> list[RoleResponse]:
     """
     Lista todos os perfis cadastrados.
+
+    Operação exclusiva do Administrador Master.
     """
 
     roles = service.list_all()
@@ -170,6 +182,7 @@ def list_roles(
 )
 def get_role(
     service: RoleServiceDependency,
+    _current_user: AdminUserDependency,
     role_id: int = Path(
         ...,
         gt=0,
@@ -180,6 +193,8 @@ def get_role(
 ) -> RoleResponse:
     """
     Consulta um perfil pelo identificador.
+
+    Operação exclusiva do Administrador Master.
     """
 
     role = service.get_by_id(

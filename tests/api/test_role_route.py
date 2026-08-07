@@ -14,6 +14,12 @@ from src.database.connection import get_session
 from src.services.role_service import (
     RoleService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_ADMIN,
+)
 
 
 @pytest.fixture
@@ -37,8 +43,16 @@ def app(
 ) -> FastAPI:
     test_app = FastAPI()
 
-    test_app.include_router(
-        router
+    admin_user = SimpleNamespace(
+        id=1,
+        username="admin",
+        role_id=1,
+        is_active=1,
+    )
+
+    admin_role = SimpleNamespace(
+        id=1,
+        name=ROLE_ADMIN,
     )
 
     def override_get_session():
@@ -47,6 +61,13 @@ def app(
     def override_get_role_service():
         return service
 
+    def override_get_current_user():
+        return admin_user
+
+    session.scalar.return_value = (
+        admin_role
+    )
+
     test_app.dependency_overrides[
         get_session
     ] = override_get_session
@@ -54,6 +75,14 @@ def app(
     test_app.dependency_overrides[
         get_role_service
     ] = override_get_role_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
 
     return test_app
 
@@ -453,3 +482,98 @@ def test_should_return_422_when_role_id_is_invalid(
     assert response.status_code == 422
 
     service.get_by_id.assert_not_called()
+
+def test_should_return_401_without_authentication(
+    service: Mock,
+) -> None:
+    test_app = FastAPI()
+
+    test_app.include_router(
+        router
+    )
+
+    client = TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    )
+
+    response = client.get(
+        "/roles"
+    )
+
+    assert response.status_code == 401
+
+    service.list_all.assert_not_called()
+
+
+def test_should_return_403_for_non_admin_user(
+    session: Mock,
+    service: Mock,
+) -> None:
+    from src.api.dependencies.auth import (
+        get_current_user,
+    )
+
+    test_app = FastAPI()
+
+    buyer_user = SimpleNamespace(
+        id=2,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name="Comprador",
+    )
+
+    def override_get_session():
+        yield session
+
+    def override_get_role_service():
+        return service
+
+    def override_get_current_user():
+        return buyer_user
+
+    session.scalar.return_value = (
+        buyer_role
+    )
+
+    test_app.dependency_overrides[
+        get_session
+    ] = override_get_session
+
+    test_app.dependency_overrides[
+        get_role_service
+    ] = override_get_role_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
+
+    client = TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    )
+
+    response = client.get(
+        "/roles"
+    )
+
+    assert response.status_code == 403
+
+    assert response.json() == {
+        "detail": (
+            "O usuário autenticado não possui "
+            "permissão para realizar esta "
+            "operação."
+        ),
+    }
+
+    service.list_all.assert_not_called()

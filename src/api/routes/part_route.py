@@ -11,8 +11,13 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 from src.database.connection import get_session
-from src.repositories.part_repository import PartRepository
+from src.repositories.part_repository import (
+    PartRepository,
+)
 from src.repositories.supplier_repository import (
     SupplierRepository,
 )
@@ -21,7 +26,9 @@ from src.schemas.part_schema import (
     PartResponse,
     PartUpdateRequest,
 )
-from src.services.part_service import PartService
+from src.services.part_service import (
+    PartService,
+)
 
 
 router = APIRouter(
@@ -39,9 +46,14 @@ SessionDependency = Annotated[
 def get_part_service(
     session: SessionDependency,
 ) -> PartService:
-    """Cria o serviço de peças com suas dependências."""
+    """
+    Cria o serviço de peças
+    com suas dependências.
+    """
 
-    part_repository = PartRepository(session)
+    part_repository = PartRepository(
+        session
+    )
 
     supplier_repository = SupplierRepository(
         session
@@ -62,7 +74,10 @@ PartServiceDependency = Annotated[
 def raise_part_http_exception(
     error: ValueError,
 ) -> NoReturn:
-    """Converte erros de negócio em respostas HTTP."""
+    """
+    Converte erros de negócio
+    em respostas HTTP.
+    """
 
     message = str(error)
 
@@ -73,7 +88,9 @@ def raise_part_http_exception(
 
     if message in not_found_messages:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
             detail=message,
         ) from error
 
@@ -82,12 +99,16 @@ def raise_part_http_exception(
         "para o fornecedor informado."
     ):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=(
+                status.HTTP_409_CONFLICT
+            ),
             detail=message,
         ) from error
 
     raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
+        status_code=(
+            status.HTTP_400_BAD_REQUEST
+        ),
         detail=message,
     ) from error
 
@@ -105,8 +126,11 @@ def create_part(
     ],
     session: SessionDependency,
     service: PartServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
 ) -> PartResponse:
-    """Cadastra uma peça controlada pelo SIGC."""
+    """
+    Cadastra uma peça controlada pelo SIGC.
+    """
 
     try:
         part = service.create(
@@ -120,13 +144,21 @@ def create_part(
         )
 
         session.commit()
-        session.refresh(part)
 
-        return PartResponse.model_validate(part)
+        session.refresh(
+            part
+        )
+
+        return PartResponse.model_validate(
+            part
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_part_http_exception(error)
+
+        raise_part_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -141,6 +173,7 @@ def create_part(
 )
 def list_parts(
     service: PartServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int | None = Query(
         default=None,
         gt=0,
@@ -150,23 +183,31 @@ def list_parts(
         ),
     ),
 ) -> list[PartResponse]:
-    """Lista todas as peças ou filtra por fornecedor."""
+    """
+    Lista todas as peças ou filtra
+    por fornecedor.
+    """
 
     try:
         if supplier_id is None:
             parts = service.list_all()
+
         else:
             parts = service.list_by_supplier(
                 supplier_id
             )
 
         return [
-            PartResponse.model_validate(part)
+            PartResponse.model_validate(
+                part
+            )
             for part in parts
         ]
 
     except ValueError as error:
-        raise_part_http_exception(error)
+        raise_part_http_exception(
+            error
+        )
 
 
 @router.get(
@@ -177,21 +218,30 @@ def list_parts(
 )
 def get_part(
     service: PartServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     part_id: int = Path(
         ...,
         gt=0,
         description="Identificador da peça",
     ),
 ) -> PartResponse:
-    """Consulta uma peça pelo identificador."""
+    """
+    Consulta uma peça pelo identificador.
+    """
 
     try:
-        part = service.get_required(part_id)
+        part = service.get_required(
+            part_id
+        )
 
-        return PartResponse.model_validate(part)
+        return PartResponse.model_validate(
+            part
+        )
 
     except ValueError as error:
-        raise_part_http_exception(error)
+        raise_part_http_exception(
+            error
+        )
 
 
 @router.put(
@@ -207,13 +257,16 @@ def update_part(
     ],
     session: SessionDependency,
     service: PartServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     part_id: int = Path(
         ...,
         gt=0,
         description="Identificador da peça",
     ),
 ) -> PartResponse:
-    """Atualiza parcialmente uma peça existente."""
+    """
+    Atualiza parcialmente uma peça existente.
+    """
 
     try:
         update_data = request.model_dump(
@@ -226,13 +279,21 @@ def update_part(
         )
 
         session.commit()
-        session.refresh(part)
 
-        return PartResponse.model_validate(part)
+        session.refresh(
+            part
+        )
+
+        return PartResponse.model_validate(
+            part
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_part_http_exception(error)
+
+        raise_part_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -248,25 +309,38 @@ def update_part(
 def activate_part(
     session: SessionDependency,
     service: PartServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     part_id: int = Path(
         ...,
         gt=0,
         description="Identificador da peça",
     ),
 ) -> PartResponse:
-    """Ativa uma peça inativa."""
+    """
+    Ativa uma peça inativa.
+    """
 
     try:
-        part = service.activate(part_id)
+        part = service.activate(
+            part_id
+        )
 
         session.commit()
-        session.refresh(part)
 
-        return PartResponse.model_validate(part)
+        session.refresh(
+            part
+        )
+
+        return PartResponse.model_validate(
+            part
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_part_http_exception(error)
+
+        raise_part_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -282,25 +356,38 @@ def activate_part(
 def deactivate_part(
     session: SessionDependency,
     service: PartServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     part_id: int = Path(
         ...,
         gt=0,
         description="Identificador da peça",
     ),
 ) -> PartResponse:
-    """Desativa uma peça ativa."""
+    """
+    Desativa uma peça ativa.
+    """
 
     try:
-        part = service.deactivate(part_id)
+        part = service.deactivate(
+            part_id
+        )
 
         session.commit()
-        session.refresh(part)
 
-        return PartResponse.model_validate(part)
+        session.refresh(
+            part
+        )
+
+        return PartResponse.model_validate(
+            part
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_part_http_exception(error)
+
+        raise_part_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()

@@ -14,6 +14,12 @@ from src.database.connection import get_session
 from src.services.user_service import (
     UserService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_ADMIN,
+)
 
 
 @pytest.fixture
@@ -37,8 +43,28 @@ def app(
 ) -> FastAPI:
     test_app = FastAPI()
 
-    test_app.include_router(
-        router
+    admin_user = SimpleNamespace(
+        id=10,
+        full_name="Lucas Miura",
+        username="lucas.miura",
+        email="lucas@example.com",
+        password_hash=(
+            "protected-password-hash"
+        ),
+        role_id=1,
+        is_active=1,
+        last_login_at=None,
+        created_at=(
+            "2026-08-06T09:00:00"
+        ),
+        updated_at=(
+            "2026-08-06T09:00:00"
+        ),
+    )
+
+    admin_role = SimpleNamespace(
+        id=1,
+        name=ROLE_ADMIN,
     )
 
     def override_get_session():
@@ -47,6 +73,13 @@ def app(
     def override_get_user_service():
         return service
 
+    def override_get_current_user():
+        return admin_user
+
+    session.scalar.return_value = (
+        admin_role
+    )
+
     test_app.dependency_overrides[
         get_session
     ] = override_get_session
@@ -54,6 +87,14 @@ def app(
     test_app.dependency_overrides[
         get_user_service
     ] = override_get_user_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
 
     return test_app
 
@@ -1208,7 +1249,7 @@ def test_should_change_user_password(
     service.change_password.return_value = user
 
     response = client.patch(
-        "/users/10/change-password",
+        "/users/me/change-password",
         json={
             "current_password": "SenhaAtual123",
             "new_password": "SenhaNova123",
@@ -1266,7 +1307,7 @@ def test_should_return_422_when_change_password_payload_is_invalid(
     payload: dict,
 ) -> None:
     response = client.patch(
-        "/users/10/change-password",
+        "/users/me/change-password",
         json=payload,
     )
 
@@ -1321,7 +1362,7 @@ def test_should_convert_business_error_on_change_password(
     )
 
     response = client.patch(
-        "/users/10/change-password",
+        "/users/me/change-password",
         json={
             "current_password": "SenhaAtual123",
             "new_password": "SenhaNova123",
@@ -1345,8 +1386,6 @@ def test_should_convert_business_error_on_change_password(
     [
         "/users/0/reset-password",
         "/users/-1/reset-password",
-        "/users/0/change-password",
-        "/users/-1/change-password",
     ],
 )
 def test_should_return_422_when_user_id_is_invalid_on_password_operation(
@@ -1410,7 +1449,7 @@ def test_should_return_422_when_user_id_is_invalid_on_password_operation(
             },
         ),
         (
-            "/users/10/change-password",
+            "/users/me/change-password",
             "change_password",
             {
                 "current_password": (
@@ -1459,3 +1498,90 @@ def test_should_rollback_when_unexpected_error_occurs_on_patch_operation(
 
     session.commit.assert_not_called()
     session.refresh.assert_not_called()
+
+def test_should_return_401_without_authentication() -> None:
+    test_app = FastAPI()
+
+    test_app.include_router(
+        router
+    )
+
+    client = TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    )
+
+    response = client.get(
+        "/users"
+    )
+
+    assert response.status_code == 401
+
+
+def test_should_return_403_when_non_admin_lists_users(
+    session: Mock,
+    service: Mock,
+) -> None:
+    test_app = FastAPI()
+
+    buyer_user = SimpleNamespace(
+        id=20,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name="Comprador",
+    )
+
+    def override_get_session():
+        yield session
+
+    def override_get_user_service():
+        return service
+
+    def override_get_current_user():
+        return buyer_user
+
+    session.scalar.return_value = (
+        buyer_role
+    )
+
+    test_app.dependency_overrides[
+        get_session
+    ] = override_get_session
+
+    test_app.dependency_overrides[
+        get_user_service
+    ] = override_get_user_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
+
+    client = TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    )
+
+    response = client.get(
+        "/users"
+    )
+
+    assert response.status_code == 403
+
+    assert response.json() == {
+        "detail": (
+            "O usuário autenticado não possui "
+            "permissão para realizar esta "
+            "operação."
+        ),
+    }
+
+    service.list_all.assert_not_called()

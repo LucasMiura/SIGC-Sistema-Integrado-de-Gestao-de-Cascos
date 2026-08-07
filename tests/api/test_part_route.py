@@ -11,6 +11,12 @@ from src.api.routes.part_route import (
 from src.database.connection import get_session
 from src.main import app
 from src.services.part_service import PartService
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_BUYER,
+)
 
 
 @pytest.fixture
@@ -43,14 +49,38 @@ def client(
     session_mock: Mock,
 ) -> Generator[TestClient, None, None]:
     """
-    Cria o cliente HTTP substituindo o serviço e a sessão reais.
+    Cria o cliente HTTP simulando
+    um Comprador autenticado.
     """
+
+    buyer_user = SimpleNamespace(
+        id=2,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name=ROLE_BUYER,
+    )
 
     def override_part_service() -> Mock:
         return service_mock
 
-    def override_session() -> Generator[Mock, None, None]:
+    def override_session() -> Generator[
+        Mock,
+        None,
+        None,
+    ]:
         yield session_mock
+
+    def override_get_current_user():
+        return buyer_user
+
+    session_mock.scalar.return_value = (
+        buyer_role
+    )
 
     app.dependency_overrides[
         get_part_service
@@ -59,6 +89,10 @@ def client(
     app.dependency_overrides[
         get_session
     ] = override_session
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
 
     with TestClient(app) as test_client:
         yield test_client
@@ -1357,3 +1391,97 @@ def test_should_return_422_when_deactivate_invalid_id(
     session_mock.commit.assert_not_called()
     session_mock.rollback.assert_not_called()
     session_mock.refresh.assert_not_called()
+
+def test_should_return_401_without_authentication(
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    def override_service() -> Mock:
+        return service_mock
+
+    def override_session():
+        yield session_mock
+
+    app.dependency_overrides[
+        get_part_service
+    ] = override_service
+
+    app.dependency_overrides[
+        get_session
+    ] = override_session
+
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/parts"
+            )
+
+        assert response.status_code == 401
+
+        service_mock.list_all.assert_not_called()
+
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_should_return_403_when_seller_accesses_parts(
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    seller_user = SimpleNamespace(
+        id=3,
+        username="vendedor",
+        role_id=3,
+        is_active=1,
+    )
+
+    seller_role = SimpleNamespace(
+        id=3,
+        name="Vendedor",
+    )
+
+    def override_service() -> Mock:
+        return service_mock
+
+    def override_session():
+        yield session_mock
+
+    def override_get_current_user():
+        return seller_user
+
+    session_mock.scalar.return_value = (
+        seller_role
+    )
+
+    app.dependency_overrides[
+        get_part_service
+    ] = override_service
+
+    app.dependency_overrides[
+        get_session
+    ] = override_session
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/parts"
+            )
+
+        assert response.status_code == 403
+
+        assert response.json() == {
+            "detail": (
+                "O usuário autenticado não possui "
+                "permissão para realizar esta "
+                "operação."
+            ),
+        }
+
+        service_mock.list_all.assert_not_called()
+
+    finally:
+        app.dependency_overrides.clear()

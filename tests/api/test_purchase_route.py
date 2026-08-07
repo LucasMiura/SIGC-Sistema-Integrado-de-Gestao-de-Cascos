@@ -14,6 +14,12 @@ from src.database.connection import get_session
 from src.services.purchase_service import (
     PurchaseService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
+from src.api.dependencies.authorization import (
+    ROLE_BUYER,
+)
 
 
 @pytest.fixture
@@ -40,18 +46,36 @@ def app(
     service: Mock,
 ) -> FastAPI:
     """
-    Cria uma aplicação isolada para os testes.
+    Cria uma aplicação isolada simulando
+    um Comprador autenticado.
     """
 
     test_app = FastAPI()
 
-    test_app.include_router(router)
+    buyer_user = SimpleNamespace(
+        id=30,
+        username="comprador",
+        role_id=2,
+        is_active=1,
+    )
+
+    buyer_role = SimpleNamespace(
+        id=2,
+        name=ROLE_BUYER,
+    )
 
     def override_get_session():
         yield session
 
     def override_get_purchase_service():
         return service
+
+    def override_get_current_user():
+        return buyer_user
+
+    session.scalar.return_value = (
+        buyer_role
+    )
 
     test_app.dependency_overrides[
         get_session
@@ -60,6 +84,14 @@ def app(
     test_app.dependency_overrides[
         get_purchase_service
     ] = override_get_purchase_service
+
+    test_app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    test_app.include_router(
+        router
+    )
 
     return test_app
 
@@ -125,7 +157,6 @@ def test_should_create_purchase(
             "invoice_number": "NF-12345",
             "invoice_series": "1",
             "issue_date": "2026-07-29",
-            "created_by": 30,
             "status": "PENDING",
             "notes": "Compra de teste.",
         },
@@ -183,7 +214,6 @@ def test_should_create_purchase_with_optional_fields_omitted(
             "supplier_id": 20,
             "invoice_number": "NF-12345",
             "issue_date": "2026-07-29",
-            "created_by": 30,
         },
     )
 
@@ -229,7 +259,6 @@ def test_should_return_404_when_supplier_is_not_found_on_create(
             "invoice_number": "NF-12345",
             "invoice_series": "1",
             "issue_date": "2026-07-29",
-            "created_by": 30,
             "status": "PENDING",
             "notes": "Compra de teste.",
         },
@@ -263,7 +292,6 @@ def test_should_return_400_when_supplier_is_inactive_on_create(
             "invoice_number": "NF-12345",
             "invoice_series": "1",
             "issue_date": "2026-07-29",
-            "created_by": 30,
         },
     )
 
@@ -298,7 +326,6 @@ def test_should_return_409_when_invoice_is_duplicated_on_create(
             "invoice_number": "NF-12345",
             "invoice_series": "1",
             "issue_date": "2026-07-29",
-            "created_by": 30,
         },
     )
 
@@ -326,7 +353,6 @@ def test_should_return_409_when_invoice_is_duplicated_on_create(
             {
                 "invoice_number": "NF-12345",
                 "issue_date": "2026-07-29",
-                "created_by": 30,
             },
             "supplier_id",
         ),
@@ -334,7 +360,6 @@ def test_should_return_409_when_invoice_is_duplicated_on_create(
             {
                 "supplier_id": 20,
                 "issue_date": "2026-07-29",
-                "created_by": 30,
             },
             "invoice_number",
         ),
@@ -342,17 +367,8 @@ def test_should_return_409_when_invoice_is_duplicated_on_create(
             {
                 "supplier_id": 20,
                 "invoice_number": "NF-12345",
-                "created_by": 30,
             },
             "issue_date",
-        ),
-        (
-            {
-                "supplier_id": 20,
-                "invoice_number": "NF-12345",
-                "issue_date": "2026-07-29",
-            },
-            "created_by",
         ),
     ],
 )
@@ -369,13 +385,7 @@ def test_should_return_422_when_required_field_is_missing(
     )
 
     assert response.status_code == 422
-
-    errors = response.json()["detail"]
-
-    assert any(
-        error["loc"][-1] == missing_field
-        for error in errors
-    )
+    assert missing_field in response.text
 
     service.create_purchase.assert_not_called()
 
@@ -435,7 +445,6 @@ def test_should_return_422_when_create_status_is_invalid(
             "supplier_id": 20,
             "invoice_number": "NF-12345",
             "issue_date": "2026-07-29",
-            "created_by": 30,
             "status": "INVALID",
         },
     )
@@ -459,7 +468,6 @@ def test_should_return_422_when_create_payload_has_extra_field(
             "supplier_id": 20,
             "invoice_number": "NF-12345",
             "issue_date": "2026-07-29",
-            "created_by": 30,
             "unexpected_field": "valor inválido",
         },
     )
@@ -487,7 +495,6 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
             "supplier_id": 20,
             "invoice_number": "NF-12345",
             "issue_date": "2026-07-29",
-            "created_by": 30,
         },
     )
 

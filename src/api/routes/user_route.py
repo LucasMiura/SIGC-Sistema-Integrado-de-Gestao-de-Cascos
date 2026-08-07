@@ -10,6 +10,12 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.auth import (
+    CurrentUserDependency,
+)
+from src.api.dependencies.authorization import (
+    AdminUserDependency,
+)
 from src.database.connection import get_session
 from src.repositories.role_repository import (
     RoleRepository,
@@ -134,12 +140,12 @@ def create_user(
     ],
     session: SessionDependency,
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
 ) -> UserResponse:
     """
     Cadastra um novo usuário ativo.
 
-    A senha é transformada em hash pelo service
-    e nunca é devolvida na resposta da API.
+    Operação exclusiva do Administrador Master.
     """
 
     try:
@@ -152,6 +158,7 @@ def create_user(
         )
 
         session.commit()
+
         session.refresh(
             user
         )
@@ -180,12 +187,12 @@ def create_user(
 )
 def list_users(
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
 ) -> list[UserResponse]:
     """
     Lista usuários ativos e inativos.
 
-    Usuários históricos não são excluídos
-    fisicamente do SIGC.
+    Operação exclusiva do Administrador Master.
     """
 
     users = service.list_all()
@@ -206,16 +213,17 @@ def list_users(
 )
 def get_user(
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
-        description=(
-            "Identificador do usuário"
-        ),
+        description="Identificador do usuário",
     ),
 ) -> UserResponse:
     """
     Consulta um usuário pelo identificador.
+
+    Operação exclusiva do Administrador Master.
     """
 
     try:
@@ -246,19 +254,18 @@ def update_user(
     ],
     session: SessionDependency,
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
-        description=(
-            "Identificador do usuário"
-        ),
+        description="Identificador do usuário",
     ),
 ) -> UserResponse:
     """
     Atualiza somente os campos enviados.
 
-    A senha não pode ser modificada por esta
-    operação.
+    Operação exclusiva do Administrador Master.
+    A senha possui operações próprias.
     """
 
     try:
@@ -272,6 +279,7 @@ def update_user(
         )
 
         session.commit()
+
         session.refresh(
             user
         )
@@ -301,16 +309,17 @@ def update_user(
 def activate_user(
     session: SessionDependency,
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
-        description=(
-            "Identificador do usuário"
-        ),
+        description="Identificador do usuário",
     ),
 ) -> UserResponse:
     """
     Reativa um usuário inativo.
+
+    Operação exclusiva do Administrador Master.
     """
 
     try:
@@ -319,6 +328,7 @@ def activate_user(
         )
 
         session.commit()
+
         session.refresh(
             user
         )
@@ -348,17 +358,18 @@ def activate_user(
 def deactivate_user(
     session: SessionDependency,
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
-        description=(
-            "Identificador do usuário"
-        ),
+        description="Identificador do usuário",
     ),
 ) -> UserResponse:
     """
     Desativa um usuário sem excluir
     seu histórico.
+
+    Operação exclusiva do Administrador Master.
     """
 
     try:
@@ -367,6 +378,7 @@ def deactivate_user(
         )
 
         session.commit()
+
         session.refresh(
             user
         )
@@ -400,19 +412,17 @@ def reset_user_password(
     ],
     session: SessionDependency,
     service: UserServiceDependency,
+    _current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
-        description=(
-            "Identificador do usuário"
-        ),
+        description="Identificador do usuário",
     ),
 ) -> UserResponse:
     """
     Redefine administrativamente a senha.
 
-    A autorização para esta operação será
-    adicionada posteriormente.
+    Operação exclusiva do Administrador Master.
     """
 
     try:
@@ -424,6 +434,7 @@ def reset_user_password(
         )
 
         session.commit()
+
         session.refresh(
             user
         )
@@ -445,38 +456,30 @@ def reset_user_password(
 
 
 @router.patch(
-    "/{user_id}/change-password",
+    "/me/change-password",
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
     summary="Alterar própria senha",
 )
-def change_user_password(
+def change_own_password(
     request: Annotated[
         UserChangePasswordRequest,
         Body(...),
     ],
     session: SessionDependency,
     service: UserServiceDependency,
-    user_id: int = Path(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do usuário"
-        ),
-    ),
+    current_user: CurrentUserDependency,
 ) -> UserResponse:
     """
-    Altera a senha mediante confirmação
-    da senha atual.
+    Altera a senha do próprio usuário autenticado.
 
-    Após a implementação da autenticação,
-    o identificador será obtido do usuário
-    autenticado, e não livremente informado.
+    O identificador é obtido do token e não pode
+    ser informado livremente pelo cliente.
     """
 
     try:
         user = service.change_password(
-            user_id=user_id,
+            user_id=current_user.id,
             current_password=(
                 request.current_password
             ),
@@ -486,6 +489,7 @@ def change_user_password(
         )
 
         session.commit()
+
         session.refresh(
             user
         )

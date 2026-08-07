@@ -11,6 +11,9 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 from src.database.connection import get_session
 from src.repositories.part_repository import (
     PartRepository,
@@ -52,7 +55,8 @@ def get_purchase_service(
     session: SessionDependency,
 ) -> PurchaseService:
     """
-    Cria o serviço de compras com suas dependências.
+    Cria o serviço de compras com suas
+    dependências.
     """
 
     purchase_repository = PurchaseRepository(
@@ -93,7 +97,8 @@ def raise_purchase_http_exception(
     error: ValueError,
 ) -> NoReturn:
     """
-    Converte erros de negócio em respostas HTTP.
+    Converte erros de negócio
+    em respostas HTTP.
     """
 
     message = str(error)
@@ -115,18 +120,24 @@ def raise_purchase_http_exception(
 
     if message in not_found_messages:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
             detail=message,
         ) from error
 
     if message in conflict_messages:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=(
+                status.HTTP_409_CONFLICT
+            ),
             detail=message,
         ) from error
 
     raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
+        status_code=(
+            status.HTTP_400_BAD_REQUEST
+        ),
         detail=message,
     ) from error
 
@@ -144,9 +155,13 @@ def create_purchase(
     ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
 ) -> PurchaseResponse:
     """
     Cadastra uma nova compra.
+
+    O responsável é obtido automaticamente
+    do usuário autenticado.
     """
 
     try:
@@ -155,13 +170,16 @@ def create_purchase(
             invoice_number=request.invoice_number,
             invoice_series=request.invoice_series,
             issue_date=request.issue_date,
-            created_by=request.created_by,
+            created_by=current_user.id,
             status=request.status,
             notes=request.notes,
         )
 
         session.commit()
-        session.refresh(purchase)
+
+        session.refresh(
+            purchase
+        )
 
         return PurchaseResponse.model_validate(
             purchase
@@ -169,7 +187,10 @@ def create_purchase(
 
     except ValueError as error:
         session.rollback()
-        raise_purchase_http_exception(error)
+
+        raise_purchase_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -184,6 +205,7 @@ def create_purchase(
 )
 def list_purchases(
     service: PurchaseServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int | None = Query(
         default=None,
         gt=0,
@@ -193,12 +215,16 @@ def list_purchases(
     ),
 ) -> list[PurchaseResponse]:
     """
-    Lista todas as compras ou filtra por fornecedor.
+    Lista todas as compras ou filtra
+    por fornecedor.
     """
 
     try:
         if supplier_id is None:
-            purchases = service.list_purchases()
+            purchases = (
+                service.list_purchases()
+            )
+
         else:
             purchases = (
                 service.list_purchases_by_supplier(
@@ -214,7 +240,9 @@ def list_purchases(
         ]
 
     except ValueError as error:
-        raise_purchase_http_exception(error)
+        raise_purchase_http_exception(
+            error
+        )
 
 
 @router.get(
@@ -225,6 +253,7 @@ def list_purchases(
 )
 def get_purchase(
     service: PurchaseServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -245,7 +274,9 @@ def get_purchase(
         )
 
     except ValueError as error:
-        raise_purchase_http_exception(error)
+        raise_purchase_http_exception(
+            error
+        )
 
 
 @router.patch(
@@ -261,6 +292,7 @@ def update_purchase(
     ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -282,7 +314,10 @@ def update_purchase(
         )
 
         session.commit()
-        session.refresh(purchase)
+
+        session.refresh(
+            purchase
+        )
 
         return PurchaseResponse.model_validate(
             purchase
@@ -290,7 +325,10 @@ def update_purchase(
 
     except ValueError as error:
         session.rollback()
-        raise_purchase_http_exception(error)
+
+        raise_purchase_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -306,6 +344,7 @@ def update_purchase(
 def cancel_purchase(
     session: SessionDependency,
     service: PurchaseServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -313,7 +352,8 @@ def cancel_purchase(
     ),
 ) -> PurchaseResponse:
     """
-    Cancela uma compra sem apagar seu histórico.
+    Cancela uma compra sem apagar
+    seu histórico.
     """
 
     try:
@@ -322,7 +362,10 @@ def cancel_purchase(
         )
 
         session.commit()
-        session.refresh(purchase)
+
+        session.refresh(
+            purchase
+        )
 
         return PurchaseResponse.model_validate(
             purchase
@@ -330,7 +373,10 @@ def cancel_purchase(
 
     except ValueError as error:
         session.rollback()
-        raise_purchase_http_exception(error)
+
+        raise_purchase_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -350,6 +396,7 @@ def add_purchase_item(
     ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -370,7 +417,10 @@ def add_purchase_item(
         )
 
         session.commit()
-        session.refresh(purchase_item)
+
+        session.refresh(
+            purchase_item
+        )
 
         return PurchaseItemResponse.model_validate(
             purchase_item
@@ -378,7 +428,10 @@ def add_purchase_item(
 
     except ValueError as error:
         session.rollback()
-        raise_purchase_http_exception(error)
+
+        raise_purchase_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -393,6 +446,7 @@ def add_purchase_item(
 )
 def list_purchase_items(
     service: PurchaseServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -418,4 +472,6 @@ def list_purchase_items(
         ]
 
     except ValueError as error:
-        raise_purchase_http_exception(error)
+        raise_purchase_http_exception(
+            error
+        )

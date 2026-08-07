@@ -53,14 +53,6 @@ class PurchaseCreateRequest(BaseModel):
         examples=["2026-07-29"],
     )
 
-    created_by: int = Field(
-        ...,
-        gt=0,
-        description=(
-            "Identificador do usuário que cadastrou "
-            "a compra"
-        ),
-    )
 
     status: PurchaseStatus = Field(
         default="PENDING",

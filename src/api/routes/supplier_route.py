@@ -10,6 +10,9 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.authorization import (
+    AdminOrBuyerUserDependency,
+)
 from src.database.connection import get_session
 from src.repositories.supplier_repository import (
     SupplierRepository,
@@ -19,7 +22,9 @@ from src.schemas.supplier_schema import (
     SupplierResponse,
     SupplierUpdateRequest,
 )
-from src.services.supplier_service import SupplierService
+from src.services.supplier_service import (
+    SupplierService,
+)
 
 
 router = APIRouter(
@@ -38,12 +43,17 @@ def get_supplier_service(
     session: SessionDependency,
 ) -> SupplierService:
     """
-    Cria o serviço de fornecedores com suas dependências.
+    Cria o serviço de fornecedores
+    com suas dependências.
     """
 
-    repository = SupplierRepository(session)
+    repository = SupplierRepository(
+        session
+    )
 
-    return SupplierService(repository)
+    return SupplierService(
+        repository
+    )
 
 
 SupplierServiceDependency = Annotated[
@@ -56,27 +66,35 @@ def raise_supplier_http_exception(
     error: ValueError,
 ) -> NoReturn:
     """
-    Converte erros de negócio em respostas HTTP.
+    Converte erros de negócio
+    em respostas HTTP.
     """
 
     message = str(error)
 
     if message == "Fornecedor não encontrado.":
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
             detail=message,
         ) from error
 
     if message == (
-        "Já existe um fornecedor com este documento."
+        "Já existe um fornecedor com este "
+        "documento."
     ):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=(
+                status.HTTP_409_CONFLICT
+            ),
             detail=message,
         ) from error
 
     raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
+        status_code=(
+            status.HTTP_400_BAD_REQUEST
+        ),
         detail=message,
     ) from error
 
@@ -94,9 +112,13 @@ def create_supplier(
     ],
     session: SessionDependency,
     service: SupplierServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
 ) -> SupplierResponse:
     """
     Cadastra um novo fornecedor.
+
+    Operação permitida ao Administrador Master
+    e ao Comprador.
     """
 
     try:
@@ -108,13 +130,21 @@ def create_supplier(
         )
 
         session.commit()
-        session.refresh(supplier)
 
-        return SupplierResponse.model_validate(supplier)
+        session.refresh(
+            supplier
+        )
+
+        return SupplierResponse.model_validate(
+            supplier
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_supplier_http_exception(error)
+
+        raise_supplier_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -129,17 +159,21 @@ def create_supplier(
 )
 def list_suppliers(
     service: SupplierServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
 ) -> list[SupplierResponse]:
     """
     Retorna todos os fornecedores cadastrados.
 
-    A listagem contém fornecedores ativos e inativos.
+    A listagem contém fornecedores ativos
+    e inativos.
     """
 
     suppliers = service.list_all()
 
     return [
-        SupplierResponse.model_validate(supplier)
+        SupplierResponse.model_validate(
+            supplier
+        )
         for supplier in suppliers
     ]
 
@@ -152,6 +186,7 @@ def list_suppliers(
 )
 def get_supplier(
     service: SupplierServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -163,12 +198,18 @@ def get_supplier(
     """
 
     try:
-        supplier = service.get_required(supplier_id)
+        supplier = service.get_required(
+            supplier_id
+        )
 
-        return SupplierResponse.model_validate(supplier)
+        return SupplierResponse.model_validate(
+            supplier
+        )
 
     except ValueError as error:
-        raise_supplier_http_exception(error)
+        raise_supplier_http_exception(
+            error
+        )
 
 
 @router.put(
@@ -184,6 +225,7 @@ def update_supplier(
     ],
     session: SessionDependency,
     service: SupplierServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -191,9 +233,10 @@ def update_supplier(
     ),
 ) -> SupplierResponse:
     """
-    Atualiza somente os campos enviados na requisição.
+    Atualiza somente os campos enviados.
 
-    Campos opcionais enviados como null serão apagados.
+    Operação permitida ao Administrador Master
+    e ao Comprador.
     """
 
     try:
@@ -207,13 +250,21 @@ def update_supplier(
         )
 
         session.commit()
-        session.refresh(supplier)
 
-        return SupplierResponse.model_validate(supplier)
+        session.refresh(
+            supplier
+        )
+
+        return SupplierResponse.model_validate(
+            supplier
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_supplier_http_exception(error)
+
+        raise_supplier_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -229,6 +280,7 @@ def update_supplier(
 def activate_supplier(
     session: SessionDependency,
     service: SupplierServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -240,16 +292,26 @@ def activate_supplier(
     """
 
     try:
-        supplier = service.activate(supplier_id)
+        supplier = service.activate(
+            supplier_id
+        )
 
         session.commit()
-        session.refresh(supplier)
 
-        return SupplierResponse.model_validate(supplier)
+        session.refresh(
+            supplier
+        )
+
+        return SupplierResponse.model_validate(
+            supplier
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_supplier_http_exception(error)
+
+        raise_supplier_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
@@ -265,6 +327,7 @@ def activate_supplier(
 def deactivate_supplier(
     session: SessionDependency,
     service: SupplierServiceDependency,
+    _current_user: AdminOrBuyerUserDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -272,20 +335,31 @@ def deactivate_supplier(
     ),
 ) -> SupplierResponse:
     """
-    Desativa um fornecedor sem excluir seu histórico.
+    Desativa um fornecedor sem excluir
+    seu histórico.
     """
 
     try:
-        supplier = service.deactivate(supplier_id)
+        supplier = service.deactivate(
+            supplier_id
+        )
 
         session.commit()
-        session.refresh(supplier)
 
-        return SupplierResponse.model_validate(supplier)
+        session.refresh(
+            supplier
+        )
+
+        return SupplierResponse.model_validate(
+            supplier
+        )
 
     except ValueError as error:
         session.rollback()
-        raise_supplier_http_exception(error)
+
+        raise_supplier_http_exception(
+            error
+        )
 
     except Exception:
         session.rollback()
