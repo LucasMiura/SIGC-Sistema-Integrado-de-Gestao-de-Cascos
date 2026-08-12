@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 from src.database.connection import get_session
 from src.repositories.part_repository import (
     PartRepository,
@@ -28,6 +31,7 @@ from src.repositories.supplier_repository import (
     SupplierRepository,
 )
 from src.schemas.purchase_schema import (
+    PurchaseCancelRequest,
     PurchaseCreateRequest,
     PurchaseItemCreateRequest,
     PurchaseItemResponse,
@@ -155,6 +159,7 @@ def create_purchase(
     ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
+    audit_service: AuditServiceDependency,
     current_user: AdminOrBuyerUserDependency,
 ) -> PurchaseResponse:
     """
@@ -173,6 +178,31 @@ def create_purchase(
             created_by=current_user.id,
             status=request.status,
             notes=request.notes,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="PURCHASE",
+            entity_type="Purchase",
+            entity_id=purchase.id,
+            description=(
+                "Compra cadastrada."
+            ),
+            new_values={
+                "supplier_id": purchase.supplier_id,
+                "invoice_number": (
+                    purchase.invoice_number
+                ),
+                "invoice_series": (
+                    purchase.invoice_series
+                ),
+                "issue_date": purchase.issue_date,
+                "received_at": purchase.received_at,
+                "status": purchase.status,
+                "notes": purchase.notes,
+                "created_by": purchase.created_by,
+            },
         )
 
         session.commit()
@@ -292,7 +322,8 @@ def update_purchase(
     ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -308,9 +339,40 @@ def update_purchase(
             exclude_unset=True
         )
 
+        existing_purchase = service.get_purchase(
+            purchase_id
+        )
+
+        old_values = {
+            field: getattr(
+                existing_purchase,
+                field,
+            )
+            for field in update_data
+        }
+
         purchase = service.update_purchase(
             purchase_id=purchase_id,
             **update_data,
+        )
+
+        new_values = {
+            field: getattr(
+                purchase,
+                field,
+            )
+            for field in update_data
+        }
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="UPDATE",
+            module="PURCHASE",
+            entity_type="Purchase",
+            entity_id=purchase.id,
+            description="Compra atualizada.",
+            old_values=old_values,
+            new_values=new_values,
         )
 
         session.commit()
@@ -342,9 +404,14 @@ def update_purchase(
     summary="Cancelar compra",
 )
 def cancel_purchase(
+    request: Annotated[
+        PurchaseCancelRequest,
+        Body(...),
+    ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -354,11 +421,36 @@ def cancel_purchase(
     """
     Cancela uma compra sem apagar
     seu histórico.
+
+    O cancelamento exige justificativa
+    e gera registro permanente de auditoria.
     """
 
     try:
+        existing_purchase = service.get_purchase(
+            purchase_id
+        )
+
+        old_values = {
+            "status": existing_purchase.status,
+        }
+
         purchase = service.cancel_purchase(
             purchase_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CANCEL",
+            module="PURCHASE",
+            entity_type="Purchase",
+            entity_id=purchase.id,
+            description="Compra cancelada.",
+            old_values=old_values,
+            new_values={
+                "status": purchase.status,
+            },
+            justification=request.justification,
         )
 
         session.commit()
@@ -396,7 +488,8 @@ def add_purchase_item(
     ],
     session: SessionDependency,
     service: PurchaseServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     purchase_id: int = Path(
         ...,
         gt=0,
@@ -414,6 +507,31 @@ def add_purchase_item(
             quantity_purchased=(
                 request.quantity_purchased
             ),
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="PURCHASE",
+            entity_type="PurchaseItem",
+            entity_id=purchase_item.id,
+            description=(
+                "Item adicionado à compra."
+            ),
+            new_values={
+                "purchase_id": (
+                    purchase_item.purchase_id
+                ),
+                "part_id": (
+                    purchase_item.part_id
+                ),
+                "quantity_purchased": (
+                    purchase_item.quantity_purchased
+                ),
+                "quantity_available": (
+                    purchase_item.quantity_available
+                ),
+            },
         )
 
         session.commit()

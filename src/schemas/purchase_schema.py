@@ -114,6 +114,28 @@ class PurchaseUpdateRequest(BaseModel):
     )
 
 
+class PurchaseCancelRequest(BaseModel):
+    """
+    Dados obrigatórios para cancelar
+    uma compra.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para o cancelamento"
+        ),
+    )
+
+
 class PurchaseItemCreateRequest(BaseModel):
     """
     Dados para adicionar uma peça à compra.

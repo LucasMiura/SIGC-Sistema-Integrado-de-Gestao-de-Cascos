@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from src.api.routes import (
+    audit_router,
     customer_return_router,
     outbound_router,
     part_router,
@@ -23,6 +24,10 @@ app = FastAPI(
         "Sistema Integrado de Gestão de Cascos"
     ),
     version="0.1.0",
+)
+
+app.include_router(
+    audit_router
 )
 
 app.include_router(

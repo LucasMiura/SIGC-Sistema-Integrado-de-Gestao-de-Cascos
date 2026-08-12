@@ -6,6 +6,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
+
 from src.api.routes.purchase_route import (
     get_purchase_service,
     router,
@@ -41,9 +48,21 @@ def service() -> Mock:
 
 
 @pytest.fixture
+def audit_service() -> Mock:
+    """
+    Cria um AuditService simulado.
+    """
+
+    return Mock(
+        spec=AuditService,
+    )
+
+
+@pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> FastAPI:
     """
     Cria uma aplicação isolada simulando
@@ -70,6 +89,9 @@ def app(
     def override_get_purchase_service():
         return service
 
+    def override_get_audit_service():
+        return audit_service
+
     def override_get_current_user():
         return buyer_user
 
@@ -84,6 +106,10 @@ def app(
     test_app.dependency_overrides[
         get_purchase_service
     ] = override_get_purchase_service
+
+    test_app.dependency_overrides[
+        get_audit_service
+    ] = override_get_audit_service
 
     test_app.dependency_overrides[
         get_current_user
@@ -145,6 +171,7 @@ def test_should_create_purchase(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     purchase = create_purchase()
 
@@ -188,6 +215,25 @@ def test_should_create_purchase(
         notes="Compra de teste.",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="PURCHASE",
+        entity_type="Purchase",
+        entity_id=10,
+        description="Compra cadastrada.",
+        new_values={
+            "supplier_id": 20,
+            "invoice_number": "NF-12345",
+            "invoice_series": "1",
+            "issue_date": "2026-07-29",
+            "received_at": None,
+            "status": "PENDING",
+            "notes": "Compra de teste.",
+            "created_by": 30,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -200,6 +246,7 @@ def test_should_create_purchase_with_optional_fields_omitted(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     purchase = create_purchase(
         invoice_series=None,
@@ -214,6 +261,25 @@ def test_should_create_purchase_with_optional_fields_omitted(
             "supplier_id": 20,
             "invoice_number": "NF-12345",
             "issue_date": "2026-07-29",
+        },
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="PURCHASE",
+        entity_type="Purchase",
+        entity_id=10,
+        description="Compra cadastrada.",
+        new_values={
+            "supplier_id": 20,
+            "invoice_number": "NF-12345",
+            "invoice_series": None,
+            "issue_date": "2026-07-29",
+            "received_at": None,
+            "status": "PENDING",
+            "notes": None,
+            "created_by": 30,
         },
     )
 
@@ -774,7 +840,13 @@ def test_should_update_purchase(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
+    existing_purchase = create_purchase()
+
+    service.get_purchase.return_value = (
+        existing_purchase
+    )
     purchase = create_purchase(
         invoice_number="NF-99999",
         invoice_series="2",
@@ -821,6 +893,33 @@ def test_should_update_purchase(
         status="RECEIVED",
     )
 
+    service.get_purchase.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="UPDATE",
+        module="PURCHASE",
+        entity_type="Purchase",
+        entity_id=10,
+        description="Compra atualizada.",
+        old_values={
+            "invoice_number": "NF-12345",
+            "invoice_series": "1",
+            "issue_date": "2026-07-29",
+            "notes": "Compra de teste.",
+            "status": "PENDING",
+        },
+        new_values={
+            "invoice_number": "NF-99999",
+            "invoice_series": "2",
+            "issue_date": "2026-07-30",
+            "notes": "Compra atualizada.",
+            "status": "RECEIVED",
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -829,6 +928,55 @@ def test_should_update_purchase(
 
     session.rollback.assert_not_called()
 
+def test_should_rollback_when_audit_fails_on_update(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    existing_purchase = create_purchase()
+
+    updated_purchase = create_purchase(
+        notes="Compra atualizada.",
+    )
+
+    service.get_purchase.return_value = (
+        existing_purchase
+    )
+
+    service.update_purchase.return_value = (
+        updated_purchase
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/purchases/10",
+        json={
+            "notes": "Compra atualizada.",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.get_purchase.assert_called_once_with(
+        10
+    )
+
+    service.update_purchase.assert_called_once_with(
+        purchase_id=10,
+        notes="Compra atualizada.",
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 def test_should_update_only_sent_purchase_fields(
     client: TestClient,
@@ -1383,6 +1531,7 @@ def test_should_add_purchase_item(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     purchase_item = create_purchase_item()
 
@@ -1413,6 +1562,23 @@ def test_should_add_purchase_item(
         quantity_purchased=10,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="PURCHASE",
+        entity_type="PurchaseItem",
+        entity_id=30,
+        description=(
+            "Item adicionado à compra."
+        ),
+        new_values={
+            "purchase_id": 10,
+            "part_id": 40,
+            "quantity_purchased": 10,
+            "quantity_available": 10,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -1420,6 +1586,47 @@ def test_should_add_purchase_item(
     )
 
     session.rollback.assert_not_called()
+
+
+def test_should_rollback_when_audit_fails_on_add_item(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    purchase_item = create_purchase_item()
+
+    service.add_item.return_value = (
+        purchase_item
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/purchases/10/items",
+        json={
+            "part_id": 40,
+            "quantity_purchased": 10,
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.add_item.assert_called_once_with(
+        purchase_id=10,
+        part_id=40,
+        quantity_purchased=10,
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 def test_should_return_404_when_purchase_is_not_found_on_add_item(
@@ -1858,29 +2065,69 @@ def test_should_cancel_purchase(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
-    purchase = create_purchase(
+    existing_purchase = create_purchase(
+        status="PENDING",
+    )
+
+    cancelled_purchase = create_purchase(
         status="CANCELLED",
     )
 
-    service.cancel_purchase.return_value = purchase
+    service.get_purchase.return_value = (
+        existing_purchase
+    )
+
+    service.cancel_purchase.return_value = (
+        cancelled_purchase
+    )
 
     response = client.patch(
-        "/purchases/10/cancel"
+        "/purchases/10/cancel",
+        json={
+            "justification": (
+                "Compra lançada incorretamente."
+            ),
+        },
     )
 
     assert response.status_code == 200
 
-    assert response.json()["status"] == "CANCELLED"
+    assert response.json()[
+        "status"
+    ] == "CANCELLED"
+
+    service.get_purchase.assert_called_once_with(
+        10
+    )
 
     service.cancel_purchase.assert_called_once_with(
         10
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CANCEL",
+        module="PURCHASE",
+        entity_type="Purchase",
+        entity_id=10,
+        description="Compra cancelada.",
+        old_values={
+            "status": "PENDING",
+        },
+        new_values={
+            "status": "CANCELLED",
+        },
+        justification=(
+            "Compra lançada incorretamente."
+        ),
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
-        purchase
+        cancelled_purchase
     )
 
     session.rollback.assert_not_called()
@@ -1891,12 +2138,19 @@ def test_should_return_404_when_purchase_is_not_found_on_cancel(
     session: Mock,
     service: Mock,
 ) -> None:
-    service.cancel_purchase.side_effect = ValueError(
+    service.get_purchase.side_effect = ValueError(
         "Compra não encontrada."
     )
 
+    service.cancel_purchase.assert_not_called()
+
     response = client.patch(
-        "/purchases/999/cancel"
+        "/purchases/999/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 404
@@ -1916,12 +2170,22 @@ def test_should_return_409_when_purchase_is_already_cancelled(
     session: Mock,
     service: Mock,
 ) -> None:
+    service.get_purchase.return_value = (
+        create_purchase(
+            status="PENDING",
+        )
+    )
     service.cancel_purchase.side_effect = ValueError(
         "A compra já está cancelada."
     )
 
     response = client.patch(
-        "/purchases/10/cancel"
+        "/purchases/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 409
@@ -1941,13 +2205,25 @@ def test_should_return_400_when_purchase_has_movements_on_cancel(
     session: Mock,
     service: Mock,
 ) -> None:
+    
+    service.get_purchase.return_value = (
+        create_purchase(
+            status="PENDING",
+        )
+    )
+
     service.cancel_purchase.side_effect = ValueError(
         "Não é possível cancelar uma compra "
         "que já possui movimentações."
     )
 
     response = client.patch(
-        "/purchases/10/cancel"
+        "/purchases/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 400
@@ -1963,6 +2239,141 @@ def test_should_return_400_when_purchase_has_movements_on_cancel(
 
     session.commit.assert_not_called()
     session.refresh.assert_not_called()
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_cancel_justification_is_invalid(
+    client: TestClient,
+    service: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.patch(
+        "/purchases/10/cancel",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service.get_purchase.assert_not_called()
+    service.cancel_purchase.assert_not_called()
+
+def test_should_return_422_when_cancel_payload_has_extra_field(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    response = client.patch(
+        "/purchases/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+            "unknown_field": "valor",
+        },
+    )
+
+    assert response.status_code == 422
+
+    service.get_purchase.assert_not_called()
+    service.cancel_purchase.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_cancel(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    existing_purchase = create_purchase(
+        status="PENDING",
+    )
+
+    cancelled_purchase = create_purchase(
+        status="CANCELLED",
+    )
+
+    service.get_purchase.return_value = (
+        existing_purchase
+    )
+
+    service.cancel_purchase.return_value = (
+        cancelled_purchase
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/purchases/10/cancel",
+        json={
+            "justification": (
+                "Compra lançada incorretamente."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.get_purchase.assert_called_once_with(
+        10
+    )
+
+    service.cancel_purchase.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_strip_cancel_justification(
+    client: TestClient,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    service.get_purchase.return_value = (
+        create_purchase(
+            status="PENDING",
+        )
+    )
+
+    service.cancel_purchase.return_value = (
+        create_purchase(
+            status="CANCELLED",
+        )
+    )
+
+    response = client.patch(
+        "/purchases/10/cancel",
+        json={
+            "justification": (
+                "  Erro no lançamento da nota.  "
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        audit_service.register.call_args.kwargs[
+            "justification"
+        ]
+        == "Erro no lançamento da nota."
+    )
 
 
 @pytest.mark.parametrize(
@@ -2001,10 +2412,54 @@ def test_should_rollback_when_unexpected_error_occurs_on_cancel(
     )
 
     response = client.patch(
-        "/purchases/10/cancel"
+        "/purchases/10/cancel",
+        json={
+        "justification": (
+            "Cancelamento de teste."
+        ),
+    },
     )
 
     assert response.status_code == 500
+
+    session.rollback.assert_called_once_with()
+
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_create(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    purchase = create_purchase()
+
+    service.create_purchase.return_value = (
+        purchase
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/purchases",
+        json={
+            "supplier_id": 20,
+            "invoice_number": "NF-12345",
+            "invoice_series": "1",
+            "issue_date": "2026-07-29",
+            "status": "PENDING",
+            "notes": "Compra de teste.",
+        },
+    )
+
+    assert response.status_code == 500
+
+    audit_service.register.assert_called_once()
 
     session.rollback.assert_called_once_with()
 

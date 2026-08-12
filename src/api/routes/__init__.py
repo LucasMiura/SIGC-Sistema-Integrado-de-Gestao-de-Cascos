@@ -39,9 +39,13 @@ from src.api.routes.transfer_return_route import (
 from src.api.routes.user_route import (
     router as user_router,
 )
+from src.api.routes.audit_route import (
+    router as audit_router,
+)
 
 
 __all__ = [
+    "audit_router",
     "customer_return_router",
     "outbound_router",
     "part_router",

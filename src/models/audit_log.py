@@ -1,4 +1,9 @@
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.time import now_iso
@@ -6,6 +11,15 @@ from src.database.connection import Base
 
 
 class AuditLog(Base):
+    """
+    Representa um registro permanente
+    de auditoria do SIGC.
+
+    Os registros de auditoria são append-only:
+    podem ser criados, mas não devem ser
+    alterados ou excluídos.
+    """
+
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(
@@ -15,7 +29,7 @@ class AuditLog(Base):
     )
 
     user_id: Mapped[int] = mapped_column(
-        Integer,
+        ForeignKey("users.id"),
         nullable=False,
     )
 
@@ -37,6 +51,11 @@ class AuditLog(Base):
     entity_id: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     old_values: Mapped[str | None] = mapped_column(
