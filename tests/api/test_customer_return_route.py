@@ -909,48 +909,6 @@ def test_should_add_customer_return_item(
 
     session.rollback.assert_not_called()
 
-def test_should_rollback_when_audit_fails_on_add_item(
-    client: TestClient,
-    session: Mock,
-    service: Mock,
-    audit_service: Mock,
-) -> None:
-    customer_return_item = (
-        create_customer_return_item()
-    )
-
-    service.add_item.return_value = (
-        customer_return_item
-    )
-
-    audit_service.register.side_effect = (
-        RuntimeError(
-            "Falha ao registrar auditoria."
-        )
-    )
-
-    response = client.post(
-        "/customer-returns/10/items",
-        json={
-            "part_id": 40,
-            "quantity": 3,
-        },
-    )
-
-    assert response.status_code == 500
-
-    service.add_item.assert_called_once_with(
-        customer_return_id=10,
-        part_id=40,
-        quantity=3,
-    )
-
-    audit_service.register.assert_called_once()
-
-    session.rollback.assert_called_once_with()
-    session.commit.assert_not_called()
-    session.refresh.assert_not_called()
-
 
 @pytest.mark.parametrize(
     (

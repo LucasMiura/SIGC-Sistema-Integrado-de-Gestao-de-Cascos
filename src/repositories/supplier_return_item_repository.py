@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 from src.models.supplier_return_item import (
     SupplierReturnItem,
 )
+from src.models.supplier_return import (
+    SupplierReturn,
+)
 
 
 class SupplierReturnItemRepository:
@@ -82,23 +85,45 @@ class SupplierReturnItemRepository:
         self,
         purchase_item_id: int,
     ) -> int:
-        statement = select(
-            func.coalesce(
-                func.sum(
-                    SupplierReturnItem.quantity
-                ),
-                0,
+        """
+        Retorna a quantidade efetivamente remetida
+        em remessas ainda ativas.
+
+        Itens de remessas canceladas permanecem no
+        histórico, mas deixam de consumir o saldo.
+        """
+
+        statement = (
+            select(
+                func.coalesce(
+                    func.sum(
+                        SupplierReturnItem.quantity
+                    ),
+                    0,
+                )
             )
-        ).where(
-            SupplierReturnItem.purchase_item_id
-            == purchase_item_id
+            .join(
+                SupplierReturn,
+                (
+                    SupplierReturn.id
+                    == SupplierReturnItem
+                    .supplier_return_id
+                ),
+            )
+            .where(
+                SupplierReturnItem.purchase_item_id
+                == purchase_item_id,
+                SupplierReturn.status == "ACTIVE",
+            )
         )
 
         returned_quantity = self.session.scalar(
             statement
         )
 
-        return int(returned_quantity or 0)
+        return int(
+            returned_quantity or 0
+        )
 
     def add(
         self,

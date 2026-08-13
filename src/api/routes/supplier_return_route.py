@@ -37,6 +37,7 @@ from src.repositories.supplier_return_repository import (
 )
 from src.schemas.supplier_return_schema import (
     SupplierReturnAvailableQuantityResponse,
+    SupplierReturnCancelRequest,
     SupplierReturnCreateRequest,
     SupplierReturnItemCreateRequest,
     SupplierReturnItemResponse,
@@ -143,6 +144,92 @@ def get_supplier_return_service(
             customer_return_allocation_repository
         ),
     )
+
+@router.patch(
+    "/{supplier_return_id}/cancel",
+    response_model=SupplierReturnResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Cancelar remessa ao fornecedor",
+)
+def cancel_supplier_return(
+    payload: Annotated[
+        SupplierReturnCancelRequest,
+        Body(...),
+    ],
+    session: SessionDependency,
+    service: SupplierReturnServiceDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
+    supplier_return_id: int = Path(
+        ...,
+        gt=0,
+        description=(
+            "Identificador da remessa "
+            "ao fornecedor"
+        ),
+    ),
+) -> SupplierReturnResponse:
+    """
+    Cancela uma remessa ao fornecedor
+    preservando todo o histórico.
+    """
+
+    try:
+        existing_supplier_return = (
+            service.get_supplier_return(
+                supplier_return_id
+            )
+        )
+
+        old_values = {
+            "status": (
+                existing_supplier_return.status
+            ),
+        }
+
+        supplier_return = (
+            service.cancel_supplier_return(
+                supplier_return_id
+            )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CANCEL",
+            module="SUPPLIER_RETURN",
+            entity_type="SupplierReturn",
+            entity_id=supplier_return.id,
+            description=(
+                "Remessa ao fornecedor cancelada."
+            ),
+            old_values=old_values,
+            new_values={
+                "status": supplier_return.status,
+            },
+            justification=(
+                payload.justification
+            ),
+        )
+
+        session.commit()
+        session.refresh(
+            supplier_return
+        )
+
+        return SupplierReturnResponse.model_validate(
+            supplier_return
+        )
+
+    except ValueError as error:
+        session.rollback()
+
+        raise_supplier_return_http_error(
+            error
+        )
+
+    except Exception:
+        session.rollback()
+        raise
 
 
 SupplierReturnServiceDependency = Annotated[

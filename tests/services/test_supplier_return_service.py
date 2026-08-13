@@ -1517,6 +1517,55 @@ def test_should_reject_missing_supplier_return_on_get(
             20
         )
 
+def test_should_cancel_supplier_return(
+    service: SupplierReturnService,
+    supplier_return_repository: Mock,
+) -> None:
+    supplier_return = create_supplier_return(
+        status="ACTIVE",
+    )
+
+    supplier_return_repository.get_by_id.return_value = (
+        supplier_return
+    )
+
+    supplier_return_repository.save.side_effect = (
+        lambda entity: entity
+    )
+
+    result = service.cancel_supplier_return(
+        20
+    )
+
+    assert result.status == "CANCELLED"
+
+    supplier_return_repository.save.assert_called_once_with(
+        supplier_return
+    )
+
+def test_should_reject_already_cancelled_supplier_return(
+    service: SupplierReturnService,
+    supplier_return_repository: Mock,
+) -> None:
+    supplier_return_repository.get_by_id.return_value = (
+        create_supplier_return(
+            status="CANCELLED",
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "A remessa ao fornecedor já está "
+            "cancelada."
+        ),
+    ):
+        service.cancel_supplier_return(
+            20
+        )
+
+    supplier_return_repository.save.assert_not_called()
+
 
 def test_should_list_supplier_returns(
     service: SupplierReturnService,

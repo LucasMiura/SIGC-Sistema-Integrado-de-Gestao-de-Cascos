@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 from src.models.transfer_return_item import (
     TransferReturnItem,
 )
+from src.models.transfer_return import (
+    TransferReturn,
+)
 
 
 class TransferReturnItemRepository:
@@ -102,6 +105,15 @@ class TransferReturnItemRepository:
         self,
         transfer_item_id: int,
     ) -> int:
+        """
+        Retorna a quantidade efetivamente devolvida
+        à filial em devoluções ainda ativas.
+
+        Itens pertencentes a devoluções canceladas
+        permanecem registrados para histórico, mas
+        deixam de consumir o saldo disponível.
+        """
+
         statement = (
             select(
                 func.coalesce(
@@ -111,9 +123,18 @@ class TransferReturnItemRepository:
                     0,
                 )
             )
+            .join(
+                TransferReturn,
+                (
+                    TransferReturn.id
+                    == TransferReturnItem
+                    .transfer_return_id
+                ),
+            )
             .where(
                 TransferReturnItem.transfer_item_id
-                == transfer_item_id
+                == transfer_item_id,
+                TransferReturn.status == "ACTIVE",
             )
         )
 

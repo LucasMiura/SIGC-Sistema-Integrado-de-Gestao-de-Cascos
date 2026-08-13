@@ -20,6 +20,18 @@ from src.repositories.outbound_repository import (
     OutboundRepository,
 )
 from src.repositories.part_repository import PartRepository
+from src.repositories.outbound_purchase_allocation_repository import (
+    OutboundPurchaseAllocationRepository,
+)
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
+from src.repositories.supplier_return_item_repository import (
+    SupplierReturnItemRepository,
+)
+from src.repositories.transfer_return_item_repository import (
+    TransferReturnItemRepository,
+)
 
 
 class CustomerReturnService:
@@ -47,6 +59,18 @@ class CustomerReturnService:
         outbound_repository: OutboundRepository,
         outbound_item_repository: OutboundItemRepository,
         part_repository: PartRepository,
+        outbound_purchase_allocation_repository: (
+            OutboundPurchaseAllocationRepository
+        ),
+        outbound_transfer_allocation_repository: (
+            OutboundTransferAllocationRepository
+        ),
+        supplier_return_item_repository: (
+            SupplierReturnItemRepository
+        ),
+        transfer_return_item_repository: (
+            TransferReturnItemRepository
+        ),
     ) -> None:
         self.customer_return_repository = (
             customer_return_repository
@@ -67,6 +91,22 @@ class CustomerReturnService:
         )
 
         self.part_repository = part_repository
+
+        self.outbound_purchase_allocation_repository = (
+            outbound_purchase_allocation_repository
+        )
+
+        self.outbound_transfer_allocation_repository = (
+            outbound_transfer_allocation_repository
+        )
+
+        self.supplier_return_item_repository = (
+            supplier_return_item_repository
+        )
+
+        self.transfer_return_item_repository = (
+            transfer_return_item_repository
+        )
 
     def create_customer_return(
         self,
@@ -318,6 +358,126 @@ class CustomerReturnService:
             )
 
         return customer_return
+
+    def cancel_customer_return(
+        self,
+        customer_return_id: int,
+    ) -> CustomerReturn:
+        """
+        Cancela uma devolução de cliente
+        preservando todo o histórico.
+
+        O cancelamento é bloqueado quando
+        a quantidade devolvida já avançou para
+        uma operação posterior.
+        """
+
+        customer_return = self.get_customer_return(
+            customer_return_id
+        )
+
+        if customer_return.status == "CANCELLED":
+            raise ValueError(
+                "A devolução do cliente já está cancelada."
+            )
+
+        return_items = (
+            self.customer_return_item_repository
+            .list_by_customer_return(
+                customer_return_id
+            )
+        )
+
+        checked_outbound_items: set[int] = set()
+
+        for return_item in return_items:
+            allocations = (
+                self.customer_return_allocation_repository
+                .list_by_return_item(
+                    return_item.id
+                )
+            )
+
+            for allocation in allocations:
+                outbound_item_id = (
+                    allocation.outbound_item_id
+                )
+
+                if (
+                    outbound_item_id
+                    in checked_outbound_items
+                ):
+                    continue
+
+                checked_outbound_items.add(
+                    outbound_item_id
+                )
+
+                purchase_allocations = (
+                    self
+                    .outbound_purchase_allocation_repository
+                    .list_by_outbound_item(
+                        outbound_item_id
+                    )
+                )
+
+                for purchase_allocation in (
+                    purchase_allocations
+                ):
+                    dispatched_quantity = (
+                        self
+                        .supplier_return_item_repository
+                        .get_returned_quantity_by_purchase_item(
+                            purchase_allocation
+                            .purchase_item_id
+                        )
+                    )
+
+                    if dispatched_quantity > 0:
+                        raise ValueError(
+                            "Não é possível cancelar a "
+                            "devolução do cliente porque "
+                            "existem remessas posteriores "
+                            "vinculadas às quantidades "
+                            "devolvidas. Cancele primeiro "
+                            "as operações posteriores."
+                        )
+
+                transfer_allocations = (
+                    self
+                    .outbound_transfer_allocation_repository
+                    .list_by_outbound_item(
+                        outbound_item_id
+                    )
+                )
+
+                for transfer_allocation in (
+                    transfer_allocations
+                ):
+                    returned_to_branch = (
+                        self
+                        .transfer_return_item_repository
+                        .get_returned_quantity_by_transfer_item(
+                            transfer_allocation
+                            .transfer_item_id
+                        )
+                    )
+
+                    if returned_to_branch > 0:
+                        raise ValueError(
+                            "Não é possível cancelar a "
+                            "devolução do cliente porque "
+                            "existem remessas posteriores "
+                            "vinculadas às quantidades "
+                            "devolvidas. Cancele primeiro "
+                            "as operações posteriores."
+                        )
+
+        customer_return.status = "CANCELLED"
+
+        return self.customer_return_repository.save(
+            customer_return
+        )
 
     def list_customer_returns(
         self,

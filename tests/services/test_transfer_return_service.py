@@ -1190,6 +1190,55 @@ def test_should_get_transfer_return(
 
     assert result == expected
 
+def test_should_cancel_transfer_return(
+    service: TransferReturnService,
+    transfer_return_repository: Mock,
+) -> None:
+    transfer_return = create_transfer_return(
+        status="ACTIVE",
+    )
+
+    transfer_return_repository.get_by_id.return_value = (
+        transfer_return
+    )
+
+    transfer_return_repository.save.side_effect = (
+        lambda entity: entity
+    )
+
+    result = service.cancel_transfer_return(
+        30
+    )
+
+    assert result.status == "CANCELLED"
+
+    transfer_return_repository.save.assert_called_once_with(
+        transfer_return
+    )
+
+def test_should_reject_already_cancelled_transfer_return(
+    service: TransferReturnService,
+    transfer_return_repository: Mock,
+) -> None:
+    transfer_return_repository.get_by_id.return_value = (
+        create_transfer_return(
+            status="CANCELLED",
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "A devolução à filial já está "
+            "cancelada."
+        ),
+    ):
+        service.cancel_transfer_return(
+            30
+        )
+
+    transfer_return_repository.save.assert_not_called()
+
 
 def test_should_reject_missing_transfer_return_on_get(
     service: TransferReturnService,

@@ -20,6 +20,12 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     ROLE_BUYER,
 )
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
 
 
 @pytest.fixture
@@ -41,9 +47,19 @@ def service() -> Mock:
 
 
 @pytest.fixture
+def audit_service() -> Mock:
+    """Cria um AuditService simulado."""
+
+    return Mock(
+        spec=AuditService,
+    )
+
+
+@pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> FastAPI:
     """
     Cria uma aplicação isolada simulando
@@ -70,6 +86,9 @@ def app(
     def override_get_transfer_service():
         return service
 
+    def override_get_audit_service():
+        return audit_service
+
     def override_get_current_user():
         return buyer_user
 
@@ -84,6 +103,10 @@ def app(
     test_app.dependency_overrides[
         get_transfer_service
     ] = override_get_transfer_service
+
+    test_app.dependency_overrides[
+        get_audit_service
+    ] = override_get_audit_service
 
     test_app.dependency_overrides[
         get_current_user
@@ -154,6 +177,7 @@ def test_should_create_transfer(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     transfer = create_transfer()
 
@@ -191,6 +215,23 @@ def test_should_create_transfer(
         status="ACTIVE",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="TRANSFER",
+        entity_type="Transfer",
+        entity_id=10,
+        description="Transferência cadastrada.",
+        new_values={
+            "origin_branch_id": 2,
+            "destination_branch_id": 1,
+            "invoice_number": "NF-TRANSFER-100",
+            "issue_date": "2026-08-05",
+            "status": "ACTIVE",
+            "created_by": 30,
+        },
+    )
+
     session.commit.assert_called_once_with()
     session.refresh.assert_called_once_with(
         transfer
@@ -202,6 +243,7 @@ def test_should_create_transfer_with_default_status(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     transfer = create_transfer()
 
@@ -226,6 +268,23 @@ def test_should_create_transfer_with_default_status(
         issue_date="2026-08-05",
         created_by=30,
         status="ACTIVE",
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="TRANSFER",
+        entity_type="Transfer",
+        entity_id=10,
+        description="Transferência cadastrada.",
+        new_values={
+            "origin_branch_id": 2,
+            "destination_branch_id": 1,
+            "invoice_number": "NF-TRANSFER-100",
+            "issue_date": "2026-08-05",
+            "status": "ACTIVE",
+            "created_by": 30,
+        },
     )
 
     session.commit.assert_called_once_with()
@@ -699,6 +758,7 @@ def test_should_add_transfer_item(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     transfer_item = create_transfer_item()
 
@@ -733,11 +793,100 @@ def test_should_add_transfer_item(
         return_deadline_days=45,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="TRANSFER",
+        entity_type="TransferItem",
+        entity_id=20,
+        description=(
+            "Item adicionado à transferência."
+        ),
+        new_values={
+            "transfer_id": 10,
+            "part_id": 40,
+            "quantity": 10,
+            "quantity_available": 10,
+            "return_deadline_days": 45,
+        },
+    )
+
     session.commit.assert_called_once_with()
     session.refresh.assert_called_once_with(
         transfer_item
     )
     session.rollback.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_add_item(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    transfer_item = create_transfer_item()
+
+    service.add_item.return_value = (
+        transfer_item
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/transfers/10/items",
+        json={
+            "part_id": 40,
+            "quantity": 10,
+            "return_deadline_days": 45,
+        },
+    )
+
+    assert response.status_code == 500
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_create(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    transfer = create_transfer()
+
+    service.create_transfer.return_value = (
+        transfer
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/transfers",
+        json={
+            "origin_branch_id": 2,
+            "destination_branch_id": 1,
+            "invoice_number": "NF-TRANSFER-100",
+            "issue_date": "2026-08-05",
+        },
+    )
+
+    assert response.status_code == 500
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -1236,17 +1385,32 @@ def test_should_cancel_transfer(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
-    transfer = create_transfer(
+    existing_transfer = create_transfer(
+        status="ACTIVE",
+    )
+
+    cancelled_transfer = create_transfer(
         status="CANCELLED",
     )
 
+    service.get_transfer.return_value = (
+        existing_transfer
+    )
+
     service.cancel_transfer.return_value = (
-        transfer
+        cancelled_transfer
     )
 
     response = client.post(
-        "/transfers/10/cancel"
+        "/transfers/10/cancel",
+        json={
+            "justification": (
+                "Transferência lançada "
+                "incorretamente."
+            ),
+        },
     )
 
     assert response.status_code == 200
@@ -1255,15 +1419,173 @@ def test_should_cancel_transfer(
         "status"
     ] == "CANCELLED"
 
+    service.get_transfer.assert_called_once_with(
+        10
+    )
+
     service.cancel_transfer.assert_called_once_with(
         10
     )
 
-    session.commit.assert_called_once_with()
-    session.refresh.assert_called_once_with(
-        transfer
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CANCEL",
+        module="TRANSFER",
+        entity_type="Transfer",
+        entity_id=10,
+        description=(
+            "Transferência cancelada."
+        ),
+        old_values={
+            "status": "ACTIVE",
+        },
+        new_values={
+            "status": "CANCELLED",
+        },
+        justification=(
+            "Transferência lançada "
+            "incorretamente."
+        ),
     )
+
+    session.commit.assert_called_once_with()
+
+    session.refresh.assert_called_once_with(
+        cancelled_transfer
+    )
+
     session.rollback.assert_not_called()
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_cancel_justification_is_invalid(
+    client: TestClient,
+    service: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.post(
+        "/transfers/10/cancel",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service.get_transfer.assert_not_called()
+    service.cancel_transfer.assert_not_called()
+
+def test_should_return_422_when_cancel_payload_has_extra_field(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    response = client.post(
+        "/transfers/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+            "unknown_field": "valor",
+        },
+    )
+
+    assert response.status_code == 422
+
+    service.get_transfer.assert_not_called()
+    service.cancel_transfer.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_cancel(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    service.get_transfer.return_value = (
+        create_transfer(
+            status="ACTIVE",
+        )
+    )
+
+    service.cancel_transfer.return_value = (
+        create_transfer(
+            status="CANCELLED",
+        )
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/transfers/10/cancel",
+        json={
+            "justification": (
+                "Transferência lançada "
+                "incorretamente."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.get_transfer.assert_called_once_with(
+        10
+    )
+
+    service.cancel_transfer.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_strip_cancel_justification(
+    client: TestClient,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    service.get_transfer.return_value = (
+        create_transfer(
+            status="ACTIVE",
+        )
+    )
+
+    service.cancel_transfer.return_value = (
+        create_transfer(
+            status="CANCELLED",
+        )
+    )
+
+    response = client.post(
+        "/transfers/10/cancel",
+        json={
+            "justification": (
+                "  Erro no lançamento.  "
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        audit_service.register.call_args.kwargs[
+            "justification"
+        ]
+        == "Erro no lançamento."
+    )
 
 
 @pytest.mark.parametrize(
@@ -1296,12 +1618,23 @@ def test_should_convert_business_error_on_cancel(
     message: str,
     expected_status: int,
 ) -> None:
+    service.get_transfer.return_value = (
+        create_transfer(
+            status="ACTIVE",
+        )
+    )
+
     service.cancel_transfer.side_effect = (
         ValueError(message)
     )
 
     response = client.post(
-        "/transfers/10/cancel"
+        "/transfers/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == expected_status
@@ -1329,7 +1662,12 @@ def test_should_return_422_when_transfer_id_is_invalid_on_cancel(
     transfer_id: int,
 ) -> None:
     response = client.post(
-        f"/transfers/{transfer_id}/cancel"
+        f"/transfers/{transfer_id}/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 422
@@ -1345,6 +1683,11 @@ def test_should_rollback_when_unexpected_error_occurs_on_cancel(
     session: Mock,
     service: Mock,
 ) -> None:
+    service.get_transfer.return_value = (
+        create_transfer(
+            status="ACTIVE",
+        )
+    )
     service.cancel_transfer.side_effect = (
         RuntimeError(
             "Erro inesperado."
@@ -1352,7 +1695,12 @@ def test_should_rollback_when_unexpected_error_occurs_on_cancel(
     )
 
     response = client.post(
-        "/transfers/10/cancel"
+        "/transfers/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 500

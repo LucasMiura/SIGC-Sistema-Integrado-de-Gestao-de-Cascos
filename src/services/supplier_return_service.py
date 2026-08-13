@@ -385,6 +385,33 @@ class SupplierReturnService:
 
         return supplier_return
 
+    def cancel_supplier_return(
+        self,
+        supplier_return_id: int,
+    ) -> SupplierReturn:
+        """
+        Cancela uma remessa ao fornecedor
+        sem apagar seus itens ou histórico.
+        """
+
+        supplier_return = (
+            self.get_supplier_return(
+                supplier_return_id
+            )
+        )
+
+        if supplier_return.status == "CANCELLED":
+            raise ValueError(
+                "A remessa ao fornecedor já está "
+                "cancelada."
+            )
+
+        supplier_return.status = "CANCELLED"
+
+        return self.supplier_return_repository.save(
+            supplier_return
+        )
+
     def list_supplier_returns(
         self,
     ) -> list[SupplierReturn]:

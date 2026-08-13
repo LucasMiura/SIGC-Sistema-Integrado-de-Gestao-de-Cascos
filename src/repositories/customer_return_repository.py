@@ -33,3 +33,14 @@ class CustomerReturnRepository:
         self.session.add(customer_return)
         self.session.flush()
         return customer_return
+
+    def save(
+        self,
+        customer_return: CustomerReturn,
+    ) -> CustomerReturn:
+        self.session.add(
+            customer_return
+        )
+        self.session.flush()
+
+        return customer_return

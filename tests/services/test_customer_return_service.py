@@ -24,6 +24,18 @@ from src.repositories.part_repository import PartRepository
 from src.services.customer_return_service import (
     CustomerReturnService,
 )
+from src.repositories.outbound_purchase_allocation_repository import (
+    OutboundPurchaseAllocationRepository,
+)
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
+from src.repositories.supplier_return_item_repository import (
+    SupplierReturnItemRepository,
+)
+from src.repositories.transfer_return_item_repository import (
+    TransferReturnItemRepository,
+)
 
 
 @pytest.fixture
@@ -81,6 +93,34 @@ def part_repository() -> Mock:
 
 
 @pytest.fixture
+def outbound_purchase_allocation_repository() -> Mock:
+    return Mock(
+        spec=OutboundPurchaseAllocationRepository,
+    )
+
+
+@pytest.fixture
+def outbound_transfer_allocation_repository() -> Mock:
+    return Mock(
+        spec=OutboundTransferAllocationRepository,
+    )
+
+
+@pytest.fixture
+def supplier_return_item_repository() -> Mock:
+    return Mock(
+        spec=SupplierReturnItemRepository,
+    )
+
+
+@pytest.fixture
+def transfer_return_item_repository() -> Mock:
+    return Mock(
+        spec=TransferReturnItemRepository,
+    )
+
+
+@pytest.fixture
 def service(
     customer_return_repository: Mock,
     customer_return_item_repository: Mock,
@@ -88,6 +128,10 @@ def service(
     outbound_repository: Mock,
     outbound_item_repository: Mock,
     part_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    supplier_return_item_repository: Mock,
+    transfer_return_item_repository: Mock,
 ) -> CustomerReturnService:
     """Cria o service com suas dependências simuladas."""
 
@@ -106,6 +150,18 @@ def service(
             outbound_item_repository
         ),
         part_repository=part_repository,
+        outbound_purchase_allocation_repository=(
+            outbound_purchase_allocation_repository
+        ),
+        outbound_transfer_allocation_repository=(
+            outbound_transfer_allocation_repository
+        ),
+        supplier_return_item_repository=(
+            supplier_return_item_repository
+        ),
+        transfer_return_item_repository=(
+            transfer_return_item_repository
+        ),
     )
 
 
@@ -1077,3 +1133,163 @@ def test_should_reject_listing_items_from_missing_return(
         service.list_customer_return_items(999)
 
     customer_return_item_repository.list_by_customer_return.assert_not_called()
+
+def test_should_cancel_customer_return(
+    service: CustomerReturnService,
+    customer_return_repository: Mock,
+    customer_return_item_repository: Mock,
+) -> None:
+    customer_return = create_customer_return(
+        status="ACTIVE",
+    )
+
+    customer_return_repository.get_by_id.return_value = (
+        customer_return
+    )
+
+    customer_return_item_repository.list_by_customer_return.return_value = (
+        []
+    )
+
+    customer_return_repository.save.side_effect = (
+        lambda entity: entity
+    )
+
+    result = service.cancel_customer_return(
+        1
+    )
+
+    assert result.status == "CANCELLED"
+
+    customer_return_repository.save.assert_called_once_with(
+        customer_return
+    )
+
+
+def test_should_reject_already_cancelled_customer_return(
+    service: CustomerReturnService,
+    customer_return_repository: Mock,
+) -> None:
+    customer_return_repository.get_by_id.return_value = (
+        create_customer_return(
+            status="CANCELLED",
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "A devolução do cliente já está cancelada."
+        ),
+    ):
+        service.cancel_customer_return(
+            1
+        )
+
+    customer_return_repository.save.assert_not_called()
+
+
+def test_should_block_cancel_when_supplier_return_exists(
+    service: CustomerReturnService,
+    customer_return_repository: Mock,
+    customer_return_item_repository: Mock,
+    customer_return_allocation_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    supplier_return_item_repository: Mock,
+) -> None:
+    customer_return_repository.get_by_id.return_value = (
+        create_customer_return()
+    )
+
+    customer_return_item_repository.list_by_customer_return.return_value = [
+        SimpleNamespace(
+            id=100,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_return_item.return_value = [
+        SimpleNamespace(
+            outbound_item_id=20,
+        )
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = [
+        SimpleNamespace(
+            purchase_item_id=50,
+        )
+    ]
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        1
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Não é possível cancelar a "
+            "devolução do cliente"
+        ),
+    ):
+        service.cancel_customer_return(
+            1
+        )
+
+    customer_return_repository.save.assert_not_called()
+
+
+def test_should_block_cancel_when_transfer_return_exists(
+    service: CustomerReturnService,
+    customer_return_repository: Mock,
+    customer_return_item_repository: Mock,
+    customer_return_allocation_repository: Mock,
+    outbound_purchase_allocation_repository: Mock,
+    outbound_transfer_allocation_repository: Mock,
+    supplier_return_item_repository: Mock,
+    transfer_return_item_repository: Mock,
+) -> None:
+    customer_return_repository.get_by_id.return_value = (
+        create_customer_return()
+    )
+
+    customer_return_item_repository.list_by_customer_return.return_value = [
+        SimpleNamespace(
+            id=100,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_return_item.return_value = [
+        SimpleNamespace(
+            outbound_item_id=20,
+        )
+    ]
+
+    outbound_purchase_allocation_repository.list_by_outbound_item.return_value = (
+        []
+    )
+
+    supplier_return_item_repository.get_returned_quantity_by_purchase_item.return_value = (
+        0
+    )
+
+    outbound_transfer_allocation_repository.list_by_outbound_item.return_value = [
+        SimpleNamespace(
+            transfer_item_id=60,
+        )
+    ]
+
+    transfer_return_item_repository.get_returned_quantity_by_transfer_item.return_value = (
+        1
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Não é possível cancelar a "
+            "devolução do cliente"
+        ),
+    ):
+        service.cancel_customer_return(
+            1
+        )
+
+    customer_return_repository.save.assert_not_called()

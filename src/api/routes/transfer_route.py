@@ -22,6 +22,7 @@ from src.repositories.transfer_repository import (
 )
 from src.schemas.transfer_schema import (
     TransferAvailableQuantityResponse,
+    TransferCancelRequest,
     TransferCreateRequest,
     TransferItemCreateRequest,
     TransferItemResponse,
@@ -32,6 +33,9 @@ from src.services.transfer_service import (
 )
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
+)
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
 )
 
 
@@ -155,6 +159,7 @@ def create_transfer(
     ],
     session: SessionDependency,
     service: TransferServiceDependency,
+    audit_service: AuditServiceDependency,
     current_user: AdminOrBuyerUserDependency,
 ) -> TransferResponse:
     """
@@ -176,6 +181,29 @@ def create_transfer(
             issue_date=request.issue_date,
             created_by=current_user.id,
             status=request.status.value,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="TRANSFER",
+            entity_type="Transfer",
+            entity_id=transfer.id,
+            description="Transferência cadastrada.",
+            new_values={
+                "origin_branch_id": (
+                    transfer.origin_branch_id
+                ),
+                "destination_branch_id": (
+                    transfer.destination_branch_id
+                ),
+                "invoice_number": (
+                    transfer.invoice_number
+                ),
+                "issue_date": transfer.issue_date,
+                "status": transfer.status,
+                "created_by": transfer.created_by,
+            },
         )
 
         session.commit()
@@ -273,7 +301,8 @@ def add_transfer_item(
     ],
     session: SessionDependency,
     service: TransferServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,
@@ -295,6 +324,30 @@ def add_transfer_item(
             return_deadline_days=(
                 request.return_deadline_days
             ),
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="TRANSFER",
+            entity_type="TransferItem",
+            entity_id=transfer_item.id,
+            description=(
+                "Item adicionado à transferência."
+            ),
+            new_values={
+                "transfer_id": (
+                    transfer_item.transfer_id
+                ),
+                "part_id": transfer_item.part_id,
+                "quantity": transfer_item.quantity,
+                "quantity_available": (
+                    transfer_item.quantity_available
+                ),
+                "return_deadline_days": (
+                    transfer_item.return_deadline_days
+                ),
+            },
         )
 
         session.commit()
@@ -456,9 +509,14 @@ def get_available_quantity(
     summary="Cancelar transferência",
 )
 def cancel_transfer(
+    request: Annotated[
+        TransferCancelRequest,
+        Body(...),
+    ],
     session: SessionDependency,
     service: TransferServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     transfer_id: int = Path(
         ...,
         gt=0,
@@ -469,11 +527,40 @@ def cancel_transfer(
 ) -> TransferResponse:
     """
     Cancela uma transferência sem movimentações.
+
+    O cancelamento exige justificativa
+    e gera registro permanente de auditoria.
     """
 
     try:
+        existing_transfer = service.get_transfer(
+            transfer_id
+        )
+
+        old_values = {
+            "status": existing_transfer.status,
+        }
+
         transfer = service.cancel_transfer(
             transfer_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CANCEL",
+            module="TRANSFER",
+            entity_type="Transfer",
+            entity_id=transfer.id,
+            description=(
+                "Transferência cancelada."
+            ),
+            old_values=old_values,
+            new_values={
+                "status": transfer.status,
+            },
+            justification=(
+                request.justification
+            ),
         )
 
         session.commit()

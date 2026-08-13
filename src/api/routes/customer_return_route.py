@@ -30,6 +30,7 @@ from src.repositories.part_repository import (
     PartRepository,
 )
 from src.schemas.customer_return_schema import (
+    CustomerReturnCancelRequest,
     CustomerReturnCreateRequest,
     CustomerReturnItemCreateRequest,
     CustomerReturnItemResponse,
@@ -43,6 +44,18 @@ from src.api.dependencies.authorization import (
 )
 from src.api.dependencies.audit import (
     AuditServiceDependency,
+)
+from src.repositories.outbound_purchase_allocation_repository import (
+    OutboundPurchaseAllocationRepository,
+)
+from src.repositories.outbound_transfer_allocation_repository import (
+    OutboundTransferAllocationRepository,
+)
+from src.repositories.supplier_return_item_repository import (
+    SupplierReturnItemRepository,
+)
+from src.repositories.transfer_return_item_repository import (
+    TransferReturnItemRepository,
 )
 
 
@@ -98,6 +111,30 @@ def get_customer_return_service(
         session
     )
 
+    outbound_purchase_allocation_repository = (
+        OutboundPurchaseAllocationRepository(
+            session
+        )
+    )
+
+    outbound_transfer_allocation_repository = (
+        OutboundTransferAllocationRepository(
+            session
+        )
+    )
+
+    supplier_return_item_repository = (
+        SupplierReturnItemRepository(
+            session
+        )
+    )
+
+    transfer_return_item_repository = (
+        TransferReturnItemRepository(
+            session
+        )
+    )
+
     return CustomerReturnService(
         customer_return_repository=(
             customer_return_repository
@@ -115,6 +152,18 @@ def get_customer_return_service(
             outbound_item_repository
         ),
         part_repository=part_repository,
+        outbound_purchase_allocation_repository=(
+            outbound_purchase_allocation_repository
+        ),
+        outbound_transfer_allocation_repository=(
+            outbound_transfer_allocation_repository
+        ),
+        supplier_return_item_repository=(
+            supplier_return_item_repository
+        ),
+        transfer_return_item_repository=(
+            transfer_return_item_repository
+        ),
     )
 
 
@@ -310,6 +359,95 @@ def get_customer_return(
             error
         )
 
+@router.patch(
+    "/{customer_return_id}/cancel",
+    response_model=CustomerReturnResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Cancelar devolução do cliente",
+)
+def cancel_customer_return(
+    payload: Annotated[
+        CustomerReturnCancelRequest,
+        Body(...),
+    ],
+    session: SessionDependency,
+    service: CustomerReturnServiceDependency,
+    audit_service: AuditServiceDependency,
+    current_user: OperationalUserDependency,
+    customer_return_id: int = Path(
+        ...,
+        gt=0,
+        description=(
+            "Identificador da devolução "
+            "do cliente"
+        ),
+    ),
+) -> CustomerReturnResponse:
+    """
+    Cancela uma devolução do cliente.
+
+    O histórico é preservado e a operação
+    exige justificativa.
+    """
+
+    try:
+        existing_customer_return = (
+            service.get_customer_return(
+                customer_return_id
+            )
+        )
+
+        old_values = {
+            "status": (
+                existing_customer_return.status
+            ),
+        }
+
+        customer_return = (
+            service.cancel_customer_return(
+                customer_return_id
+            )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CANCEL",
+            module="CUSTOMER_RETURN",
+            entity_type="CustomerReturn",
+            entity_id=customer_return.id,
+            description=(
+                "Devolução do cliente cancelada."
+            ),
+            old_values=old_values,
+            new_values={
+                "status": (
+                    customer_return.status
+                ),
+            },
+            justification=(
+                payload.justification
+            ),
+        )
+
+        session.commit()
+        session.refresh(
+            customer_return
+        )
+
+        return CustomerReturnResponse.model_validate(
+            customer_return
+        )
+
+    except ValueError as error:
+        session.rollback()
+
+        raise_customer_return_http_error(
+            error
+        )
+
+    except Exception:
+        session.rollback()
+        raise
 
 @router.post(
     "/{customer_return_id}/items",

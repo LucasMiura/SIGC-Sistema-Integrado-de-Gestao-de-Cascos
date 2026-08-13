@@ -866,6 +866,183 @@ def test_should_get_supplier_return(
         10
     )
 
+def test_should_cancel_supplier_return(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    existing_supplier_return = (
+        create_supplier_return(
+            status="ACTIVE",
+        )
+    )
+
+    cancelled_supplier_return = (
+        create_supplier_return(
+            status="CANCELLED",
+        )
+    )
+
+    service.get_supplier_return.return_value = (
+        existing_supplier_return
+    )
+
+    service.cancel_supplier_return.return_value = (
+        cancelled_supplier_return
+    )
+
+    response = client.patch(
+        "/supplier-returns/10/cancel",
+        json={
+            "justification": (
+                "Remessa lançada incorretamente."
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert response.json()[
+        "status"
+    ] == "CANCELLED"
+
+    service.get_supplier_return.assert_called_once_with(
+        10
+    )
+
+    service.cancel_supplier_return.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CANCEL",
+        module="SUPPLIER_RETURN",
+        entity_type="SupplierReturn",
+        entity_id=10,
+        description=(
+            "Remessa ao fornecedor cancelada."
+        ),
+        old_values={
+            "status": "ACTIVE",
+        },
+        new_values={
+            "status": "CANCELLED",
+        },
+        justification=(
+            "Remessa lançada incorretamente."
+        ),
+    )
+
+    session.commit.assert_called_once_with()
+
+    session.refresh.assert_called_once_with(
+        cancelled_supplier_return
+    )
+
+    session.rollback.assert_not_called()
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_cancel_justification_is_invalid(
+    client: TestClient,
+    service: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.patch(
+        "/supplier-returns/10/cancel",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service.get_supplier_return.assert_not_called()
+    service.cancel_supplier_return.assert_not_called()
+
+def test_should_return_400_when_supplier_return_is_already_cancelled(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+) -> None:
+    service.get_supplier_return.return_value = (
+        create_supplier_return(
+            status="ACTIVE",
+        )
+    )
+
+    service.cancel_supplier_return.side_effect = (
+        ValueError(
+            "A remessa ao fornecedor já está "
+            "cancelada."
+        )
+    )
+
+    response = client.patch(
+        "/supplier-returns/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
+    )
+
+    assert response.status_code == 400
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_cancel(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    service.get_supplier_return.return_value = (
+        create_supplier_return(
+            status="ACTIVE",
+        )
+    )
+
+    service.cancel_supplier_return.return_value = (
+        create_supplier_return(
+            status="CANCELLED",
+        )
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/supplier-returns/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 def test_should_return_404_when_supplier_return_is_not_found(
     client: TestClient,

@@ -31,6 +31,7 @@ from src.repositories.transfer_return_repository import (
 )
 from src.schemas.transfer_return_schema import (
     TransferReturnAvailableQuantityResponse,
+    TransferReturnCancelRequest,
     TransferReturnCreateRequest,
     TransferReturnItemCreateRequest,
     TransferReturnItemResponse,
@@ -41,6 +42,9 @@ from src.services.transfer_return_service import (
 )
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
+)
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
 )
 
 
@@ -119,6 +123,118 @@ def get_transfer_return_service(
         ),
     )
 
+@router.patch(
+    "/{transfer_return_id}/cancel",
+    response_model=TransferReturnResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Cancelar devolução à filial",
+)
+def cancel_transfer_return(
+    payload: Annotated[
+        TransferReturnCancelRequest,
+        Body(...),
+    ],
+    session: SessionDependency,
+    service: TransferReturnServiceDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
+    transfer_return_id: int = Path(
+        ...,
+        gt=0,
+        description=(
+            "Identificador da devolução "
+            "à filial"
+        ),
+    ),
+) -> TransferReturnResponse:
+    """
+    Cancela uma devolução à filial
+    preservando todo o histórico.
+
+    A operação exige justificativa
+    e gera registro de auditoria.
+    """
+
+    try:
+        existing_transfer_return = (
+            service.get_transfer_return(
+                transfer_return_id
+            )
+        )
+
+        old_values = {
+            "status": (
+                existing_transfer_return.status
+            ),
+        }
+
+        transfer_return = (
+            service.cancel_transfer_return(
+                transfer_return_id
+            )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CANCEL",
+            module="TRANSFER_RETURN",
+            entity_type="TransferReturn",
+            entity_id=transfer_return.id,
+            description=(
+                "Devolução à filial cancelada."
+            ),
+            old_values=old_values,
+            new_values={
+                "status": transfer_return.status,
+            },
+            justification=(
+                payload.justification
+            ),
+        )
+
+        session.commit()
+        session.refresh(
+            transfer_return
+        )
+
+        return TransferReturnResponse.model_validate(
+            transfer_return
+        )
+
+    except ValueError as error:
+        session.rollback()
+
+        raise_transfer_return_http_exception(
+            error
+        )
+
+    except Exception:
+        session.rollback()
+        raise
+
+
+def test_should_reject_already_cancelled_transfer_return(
+    service: TransferReturnService,
+    transfer_return_repository: Mock,
+) -> None:
+    transfer_return_repository.get_by_id.return_value = (
+        create_transfer_return(
+            status="CANCELLED",
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "A devolução à filial já está "
+            "cancelada."
+        ),
+    ):
+        service.cancel_transfer_return(
+            30
+        )
+
+    transfer_return_repository.save.assert_not_called()
 
 TransferReturnServiceDependency = Annotated[
     TransferReturnService,
@@ -193,6 +309,7 @@ def create_transfer_return(
     ],
     session: SessionDependency,
     service: TransferReturnServiceDependency,
+    audit_service: AuditServiceDependency,
     current_user: AdminOrBuyerUserDependency,
 ) -> TransferReturnResponse:
     """
@@ -215,6 +332,42 @@ def create_transfer_return(
                 status=request.status.value,
                 notes=request.notes,
             )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="TRANSFER_RETURN",
+            entity_type="TransferReturn",
+            entity_id=transfer_return.id,
+            description=(
+                "Devolução à filial cadastrada."
+            ),
+            new_values={
+                "transfer_id": (
+                    transfer_return.transfer_id
+                ),
+                "dispatch_invoice_number": (
+                    transfer_return
+                    .dispatch_invoice_number
+                ),
+                "dispatch_invoice_series": (
+                    transfer_return
+                    .dispatch_invoice_series
+                ),
+                "issue_date": (
+                    transfer_return.issue_date
+                ),
+                "status": (
+                    transfer_return.status
+                ),
+                "notes": (
+                    transfer_return.notes
+                ),
+                "created_by": (
+                    transfer_return.created_by
+                ),
+            },
         )
 
         session.commit()
@@ -420,7 +573,8 @@ def add_transfer_return_item(
     ],
     session: SessionDependency,
     service: TransferReturnServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     transfer_return_id: int = Path(
         ...,
         gt=0,
@@ -446,6 +600,31 @@ def add_transfer_return_item(
                 ),
                 quantity=request.quantity,
             )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="TRANSFER_RETURN",
+            entity_type="TransferReturnItem",
+            entity_id=transfer_return_item.id,
+            description=(
+                "Item adicionado à devolução "
+                "à filial."
+            ),
+            new_values={
+                "transfer_return_id": (
+                    transfer_return_item
+                    .transfer_return_id
+                ),
+                "transfer_item_id": (
+                    transfer_return_item
+                    .transfer_item_id
+                ),
+                "quantity": (
+                    transfer_return_item.quantity
+                ),
+            },
         )
 
         session.commit()

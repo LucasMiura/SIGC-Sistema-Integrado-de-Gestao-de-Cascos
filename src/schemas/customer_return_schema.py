@@ -73,6 +73,26 @@ class CustomerReturnCreateRequest(BaseModel):
         ],
     )
 
+class CustomerReturnCancelRequest(BaseModel):
+    """
+    Dados obrigatórios para cancelar
+    uma devolução do cliente.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para o cancelamento"
+        ),
+    )
 
 class CustomerReturnItemCreateRequest(BaseModel):
     """Dados necessários para adicionar uma peça à devolução."""

@@ -392,6 +392,31 @@ class TransferReturnService:
 
         return transfer_return
 
+    def cancel_transfer_return(
+        self,
+        transfer_return_id: int,
+    ) -> TransferReturn:
+        """
+        Cancela uma devolução à filial
+        preservando seus itens e histórico.
+        """
+
+        transfer_return = self.get_transfer_return(
+            transfer_return_id
+        )
+
+        if transfer_return.status == "CANCELLED":
+            raise ValueError(
+                "A devolução à filial já está "
+                "cancelada."
+            )
+
+        transfer_return.status = "CANCELLED"
+
+        return self.transfer_return_repository.save(
+            transfer_return
+        )
+
     def list_transfer_returns(
         self,
     ) -> list[TransferReturn]:

@@ -93,6 +93,26 @@ class TransferReturnCreateRequest(BaseModel):
         ],
     )
 
+class TransferReturnCancelRequest(BaseModel):
+    """
+    Dados obrigatórios para cancelar
+    uma devolução à filial.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para o cancelamento"
+        ),
+    )
 
 class TransferReturnItemCreateRequest(BaseModel):
     """

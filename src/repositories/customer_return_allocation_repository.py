@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 from src.models.customer_return_allocation import (
     CustomerReturnAllocation,
 )
-
+from src.models.customer_return import (
+    CustomerReturn,
+)
+from src.models.customer_return_item import (
+    CustomerReturnItem,
+)
 
 class CustomerReturnAllocationRepository:
     """Responsável pela persistência das alocações de devolução."""
@@ -41,15 +46,47 @@ class CustomerReturnAllocationRepository:
         self,
         outbound_item_id: int,
     ) -> list[CustomerReturnAllocation]:
+        """
+        Lista apenas alocações pertencentes
+        a devoluções de clientes ativas.
+
+        Alocações canceladas permanecem no banco
+        para preservação do histórico.
+        """
+
         statement = (
             select(CustomerReturnAllocation)
+            .join(
+                CustomerReturnItem,
+                (
+                    CustomerReturnItem.id
+                    == CustomerReturnAllocation
+                    .customer_return_item_id
+                ),
+            )
+            .join(
+                CustomerReturn,
+                (
+                    CustomerReturn.id
+                    == CustomerReturnItem
+                    .customer_return_id
+                ),
+            )
             .where(
                 CustomerReturnAllocation.outbound_item_id
-                == outbound_item_id
+                == outbound_item_id,
+                CustomerReturn.status == "ACTIVE",
             )
-            .order_by(CustomerReturnAllocation.id)
+            .order_by(
+                CustomerReturnAllocation.id
+            )
         )
-        return list(self.session.scalars(statement).all())
+
+        return list(
+            self.session.scalars(
+                statement
+            ).all()
+        )
 
     def add(
         self,
