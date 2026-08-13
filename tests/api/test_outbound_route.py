@@ -24,6 +24,12 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     ROLE_SELLER,
 )
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
 
 
 def create_outbound(
@@ -64,11 +70,17 @@ def service() -> Mock:
         spec=OutboundService,
     )
 
+@pytest.fixture
+def audit_service() -> Mock:
+    return Mock(
+        spec=AuditService,
+    )
 
 @pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> Generator[FastAPI, None, None]:
     application = FastAPI()
 
@@ -98,6 +110,10 @@ def app(
     ] = lambda: service
 
     application.dependency_overrides[
+        get_audit_service
+    ] = lambda: audit_service
+
+    application.dependency_overrides[
         get_current_user
     ] = override_get_current_user
 
@@ -114,7 +130,10 @@ def app(
 def client(
     app: FastAPI,
 ) -> Generator[TestClient, None, None]:
-    with TestClient(app) as test_client:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as test_client:
         yield test_client
 
 
@@ -122,6 +141,7 @@ def test_should_create_outbound(
     client: TestClient,
     service: Mock,
     session: Mock,
+    audit_service: Mock,
 ) -> None:
     outbound = create_outbound()
 
@@ -160,6 +180,22 @@ def test_should_create_outbound(
         status="ACTIVE",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="CREATE",
+        module="OUTBOUND",
+        entity_type="Outbound",
+        entity_id=10,
+        description="Saída cadastrada.",
+        new_values={
+            "destination_type": "WORK_ORDER",
+            "work_order_number": "OS-12345",
+            "sales_invoice_number": None,
+            "status": "ACTIVE",
+            "created_by": 1,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -173,6 +209,7 @@ def test_should_create_outbound_with_sales_invoice(
     client: TestClient,
     service: Mock,
     session: Mock,
+    audit_service: Mock,
 ) -> None:
     outbound = create_outbound(
         destination_type="SALE",
@@ -214,6 +251,22 @@ def test_should_create_outbound_with_sales_invoice(
         status="ACTIVE",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="CREATE",
+        module="OUTBOUND",
+        entity_type="Outbound",
+        entity_id=10,
+        description="Saída cadastrada.",
+        new_values={
+            "destination_type": "SALE",
+            "work_order_number": None,
+            "sales_invoice_number": "NFV-12345",
+            "status": "ACTIVE",
+            "created_by": 1,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -246,6 +299,48 @@ def test_should_use_active_status_by_default_on_create(
         created_by=1,
         status="ACTIVE",
     )
+
+def test_should_rollback_when_audit_fails_on_create(
+    client: TestClient,
+    service: Mock,
+    session: Mock,
+    audit_service: Mock,
+) -> None:
+    outbound = create_outbound()
+
+    service.create_outbound.return_value = (
+        outbound
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/outbounds",
+        json={
+            "destination_type": "WORK_ORDER",
+            "work_order_number": "OS-12345",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.create_outbound.assert_called_once_with(
+        destination_type="WORK_ORDER",
+        work_order_number="OS-12345",
+        sales_invoice_number=None,
+        created_by=1,
+        status="ACTIVE",
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 def test_should_return_400_when_reference_numbers_are_missing(
@@ -436,22 +531,26 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
         )
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Erro inesperado.",
-    ):
-        client.post(
-            "/outbounds",
-            json={
-                "destination_type": "WORK_ORDER",
-                "work_order_number": "OS-12345",
-            },
-        )
+    response = client.post(
+        "/outbounds",
+        json={
+            "destination_type": "WORK_ORDER",
+            "work_order_number": "OS-12345",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.create_outbound.assert_called_once_with(
+        destination_type="WORK_ORDER",
+        work_order_number="OS-12345",
+        sales_invoice_number=None,
+        created_by=1,
+        status="ACTIVE",
+    )
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
-
     session.refresh.assert_not_called()
 
 
@@ -727,7 +826,14 @@ def test_should_update_outbound(
     client: TestClient,
     service: Mock,
     session: Mock,
+    audit_service: Mock,
 ) -> None:
+    existing_outbound = create_outbound()
+
+    service.get_outbound.return_value = (
+        existing_outbound
+    )
+
     outbound = create_outbound(
         destination_type="SALE",
         work_order_number=None,
@@ -755,6 +861,27 @@ def test_should_update_outbound(
         sales_invoice_number="NFV-67890",
     )
 
+    service.get_outbound.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="UPDATE",
+        module="OUTBOUND",
+        entity_type="Outbound",
+        entity_id=10,
+        description="Saída atualizada.",
+        old_values={
+            "destination_type": "WORK_ORDER",
+            "sales_invoice_number": None,
+        },
+        new_values={
+            "destination_type": "SALE",
+            "sales_invoice_number": "NFV-67890",
+        },
+    )
+
     session.commit.assert_called_once_with()
     session.refresh.assert_called_once_with(outbound)
     session.rollback.assert_not_called()
@@ -766,6 +893,12 @@ def test_should_update_only_status(
 ) -> None:
     outbound = create_outbound(
         status="ACTIVE",
+    )
+
+    service.get_outbound.return_value = (
+        create_outbound(
+            status="ACTIVE",
+        )
     )
 
     service.update_outbound.return_value = outbound
@@ -793,6 +926,10 @@ def test_should_send_only_modified_fields(
         destination_type="INTERNAL_USE",
     )
 
+    service.get_outbound.return_value = (
+        create_outbound()
+    )
+
     service.update_outbound.return_value = outbound
 
     response = client.patch(
@@ -815,9 +952,13 @@ def test_should_return_404_when_update_outbound_is_not_found(
     service: Mock,
     session: Mock,
 ) -> None:
-    service.update_outbound.side_effect = ValueError(
-        "Saída não encontrada."
+    service.get_outbound.side_effect = (
+        ValueError(
+            "Saída não encontrada."
+        )
     )
+
+    service.update_outbound.assert_not_called()
 
     response = client.patch(
         "/outbounds/999",
@@ -841,6 +982,10 @@ def test_should_return_400_when_update_business_rule_fails(
     service: Mock,
     session: Mock,
 ) -> None:
+    service.get_outbound.return_value = (
+        create_outbound()
+    )
+    
     service.update_outbound.side_effect = ValueError(
         "Já existe uma saída com esta ordem de serviço."
     )
@@ -924,25 +1069,32 @@ def test_should_rollback_when_unexpected_error_occurs_on_update(
     service: Mock,
     session: Mock,
 ) -> None:
-    service.update_outbound.side_effect = RuntimeError(
-        "Erro inesperado."
+    service.get_outbound.return_value = (
+        create_outbound()
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Erro inesperado.",
-    ):
-        client.patch(
-            "/outbounds/10",
-            json={
-                "destination_type": "SALE",
-            },
+    service.update_outbound.side_effect = (
+        RuntimeError(
+            "Erro inesperado."
         )
+    )
+
+    response = client.patch(
+        "/outbounds/10",
+        json={
+            "status": "ACTIVE",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.update_outbound.assert_called_once_with(
+        outbound_id=10,
+        status="ACTIVE",
+    )
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
-
     session.refresh.assert_not_called()
 
 def create_outbound_item(
@@ -968,40 +1120,69 @@ def test_should_cancel_outbound(
     client: TestClient,
     service: Mock,
     session: Mock,
+    audit_service: Mock,
 ) -> None:
-    outbound = create_outbound(
+    existing_outbound = create_outbound(
+        status="ACTIVE",
+    )
+
+    cancelled_outbound = create_outbound(
         status="CANCELLED",
     )
 
+    service.get_outbound.return_value = (
+        existing_outbound
+    )
+
     service.cancel_outbound.return_value = (
-        outbound
+        cancelled_outbound
     )
 
     response = client.patch(
-        "/outbounds/10/cancel"
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "Saída lançada incorretamente."
+            ),
+        },
     )
 
     assert response.status_code == 200
 
-    assert response.json() == {
-        "id": 10,
-        "destination_type": "WORK_ORDER",
-        "work_order_number": "OS-12345",
-        "sales_invoice_number": None,
-        "created_by": 1,
-        "created_at": "2026-07-29T10:00:00",
-        "updated_at": "2026-07-29T10:00:00",
-        "status": "CANCELLED",
-    }
+    assert response.json()[
+        "status"
+    ] == "CANCELLED"
+
+    service.get_outbound.assert_called_once_with(
+        10
+    )
 
     service.cancel_outbound.assert_called_once_with(
         10
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="CANCEL",
+        module="OUTBOUND",
+        entity_type="Outbound",
+        entity_id=10,
+        description="Saída cancelada.",
+        old_values={
+            "status": "ACTIVE",
+        },
+        new_values={
+            "status": "CANCELLED",
+        },
+        justification=(
+            "Saída lançada incorretamente."
+        ),
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
-        outbound
+        cancelled_outbound
     )
 
     session.rollback.assert_not_called()
@@ -1012,14 +1193,19 @@ def test_should_return_404_when_cancel_outbound_is_not_found(
     service: Mock,
     session: Mock,
 ) -> None:
-    service.cancel_outbound.side_effect = (
+    service.get_outbound.side_effect = (
         ValueError(
             "Saída não encontrada."
         )
     )
 
     response = client.patch(
-        "/outbounds/999/cancel"
+        "/outbounds/999/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 404
@@ -1028,14 +1214,14 @@ def test_should_return_404_when_cancel_outbound_is_not_found(
         "detail": "Saída não encontrada."
     }
 
-    service.cancel_outbound.assert_called_once_with(
+    service.get_outbound.assert_called_once_with(
         999
     )
 
+    service.cancel_outbound.assert_not_called()
+
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
-
     session.refresh.assert_not_called()
 
 
@@ -1044,6 +1230,11 @@ def test_should_return_400_when_outbound_is_already_cancelled(
     service: Mock,
     session: Mock,
 ) -> None:
+    service.get_outbound.return_value = (
+        create_outbound(
+            status="ACTIVE",
+        )
+    )
     service.cancel_outbound.side_effect = (
         ValueError(
             "A saída já está cancelada."
@@ -1051,7 +1242,12 @@ def test_should_return_400_when_outbound_is_already_cancelled(
     )
 
     response = client.patch(
-        "/outbounds/10/cancel"
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 400
@@ -1070,6 +1266,11 @@ def test_should_return_404_when_purchase_item_is_not_found_on_cancel(
     service: Mock,
     session: Mock,
 ) -> None:
+    service.get_outbound.return_value = (
+        create_outbound(
+            status="ACTIVE",
+        )
+    )
     message = (
         "Item de compra relacionado "
         "à saída não encontrado."
@@ -1080,7 +1281,12 @@ def test_should_return_404_when_purchase_item_is_not_found_on_cancel(
     )
 
     response = client.patch(
-        "/outbounds/10/cancel"
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 404
@@ -1107,37 +1313,181 @@ def test_should_return_422_when_cancel_id_is_invalid(
     outbound_id: int,
 ) -> None:
     response = client.patch(
-        f"/outbounds/{outbound_id}/cancel"
+        f"/outbounds/{outbound_id}/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
     )
 
     assert response.status_code == 422
 
     service.cancel_outbound.assert_not_called()
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_cancel_justification_is_invalid(
+    client: TestClient,
+    service: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.patch(
+        "/outbounds/10/cancel",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service.get_outbound.assert_not_called()
+    service.cancel_outbound.assert_not_called()
+
+def test_should_return_422_when_cancel_payload_has_extra_field(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    response = client.patch(
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+            "unknown_field": "valor",
+        },
+    )
+
+    assert response.status_code == 422
+
+    service.get_outbound.assert_not_called()
+    service.cancel_outbound.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_cancel(
+    client: TestClient,
+    service: Mock,
+    session: Mock,
+    audit_service: Mock,
+) -> None:
+    service.get_outbound.return_value = (
+        create_outbound(
+            status="ACTIVE",
+        )
+    )
+
+    service.cancel_outbound.return_value = (
+        create_outbound(
+            status="CANCELLED",
+        )
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "Saída lançada incorretamente."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.get_outbound.assert_called_once_with(
+        10
+    )
+
+    service.cancel_outbound.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_strip_cancel_justification(
+    client: TestClient,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    service.get_outbound.return_value = (
+        create_outbound(
+            status="ACTIVE",
+        )
+    )
+
+    service.cancel_outbound.return_value = (
+        create_outbound(
+            status="CANCELLED",
+        )
+    )
+
+    response = client.patch(
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "  Erro no lançamento.  "
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        audit_service.register.call_args.kwargs[
+            "justification"
+        ]
+        == "Erro no lançamento."
+    )
 
 def test_should_rollback_when_unexpected_error_occurs_on_cancel(
     client: TestClient,
     service: Mock,
     session: Mock,
 ) -> None:
+    service.get_outbound.return_value = (
+        create_outbound(
+            status="ACTIVE",
+        )
+    )
     service.cancel_outbound.side_effect = (
         RuntimeError(
             "Erro inesperado."
         )
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Erro inesperado.",
-    ):
-        client.patch(
-            "/outbounds/10/cancel"
-        )
+    response = client.patch(
+        "/outbounds/10/cancel",
+        json={
+            "justification": (
+                "Cancelamento de teste."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.cancel_outbound.assert_called_once_with(
+        10
+    )
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
-
     session.refresh.assert_not_called()
 
 
@@ -1145,6 +1495,7 @@ def test_should_add_outbound_item(
     client: TestClient,
     service: Mock,
     session: Mock,
+    audit_service: Mock,
 ) -> None:
     outbound_item = create_outbound_item()
 
@@ -1176,6 +1527,20 @@ def test_should_add_outbound_item(
         quantity=5,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="CREATE",
+        module="OUTBOUND",
+        entity_type="OutboundItem",
+        entity_id=50,
+        description="Item adicionado à saída.",
+        new_values={
+            "outbound_id": 10,
+            "part_id": 40,
+            "quantity": 5,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -1183,6 +1548,100 @@ def test_should_add_outbound_item(
     )
 
     session.rollback.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_add_item(
+    client: TestClient,
+    service: Mock,
+    session: Mock,
+    audit_service: Mock,
+) -> None:
+    outbound_item = create_outbound_item()
+
+    service.add_item.return_value = (
+        outbound_item
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/outbounds/10/items",
+        json={
+            "part_id": 40,
+            "quantity": 5,
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.add_item.assert_called_once_with(
+        outbound_id=10,
+        part_id=40,
+        quantity=5,
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_update(
+    client: TestClient,
+    service: Mock,
+    session: Mock,
+    audit_service: Mock,
+) -> None:
+    existing_outbound = create_outbound()
+
+    updated_outbound = create_outbound(
+        destination_type="SALE",
+        work_order_number=None,
+        sales_invoice_number="NFV-67890",
+    )
+
+    service.get_outbound.return_value = (
+        existing_outbound
+    )
+
+    service.update_outbound.return_value = (
+        updated_outbound
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/outbounds/10",
+        json={
+            "destination_type": "SALE",
+            "sales_invoice_number": "NFV-67890",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.get_outbound.assert_called_once_with(
+        10
+    )
+
+    service.update_outbound.assert_called_once_with(
+        outbound_id=10,
+        destination_type="SALE",
+        sales_invoice_number="NFV-67890",
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 def test_should_return_404_when_outbound_is_not_found_on_add_item(
@@ -1415,22 +1874,24 @@ def test_should_rollback_when_unexpected_error_occurs_on_add_item(
         )
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Erro inesperado.",
-    ):
-        client.post(
-            "/outbounds/10/items",
-            json={
-                "part_id": 40,
-                "quantity": 5,
-            },
-        )
+    response = client.post(
+        "/outbounds/10/items",
+        json={
+            "part_id": 20,
+            "quantity": 2,
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.add_item.assert_called_once_with(
+        outbound_id=10,
+        part_id=20,
+        quantity=2,
+    )
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
-
     session.refresh.assert_not_called()
 
 

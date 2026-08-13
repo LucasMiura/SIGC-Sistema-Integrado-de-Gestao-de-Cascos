@@ -93,6 +93,27 @@ class OutboundUpdateRequest(BaseModel):
     )
 
 
+class OutboundCancelRequest(BaseModel):
+    """
+    Dados obrigatórios para cancelar
+    uma saída.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para o cancelamento"
+        ),
+    )
+
 class OutboundItemCreateRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",

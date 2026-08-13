@@ -34,6 +34,7 @@ from src.repositories.transfer_item_repository import (
     TransferItemRepository,
 )
 from src.schemas.outbound_schema import (
+    OutboundCancelRequest,
     OutboundCreateRequest,
     OutboundItemCreateRequest,
     OutboundItemResponse,
@@ -46,6 +47,9 @@ from src.services.outbound_service import (
 )
 from src.api.dependencies.authorization import (
     AdminOrSellerUserDependency,
+)
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
 )
 
 
@@ -183,6 +187,7 @@ def create_outbound(
     ],
     session: SessionDependency,
     service: OutboundServiceDependency,
+    audit_service: AuditServiceDependency,
     current_user: AdminOrSellerUserDependency,
 ) -> OutboundResponse:
     """
@@ -205,6 +210,28 @@ def create_outbound(
             ),
             created_by=current_user.id,
             status=payload.status.value,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="OUTBOUND",
+            entity_type="Outbound",
+            entity_id=outbound.id,
+            description="Saída cadastrada.",
+            new_values={
+                "destination_type": (
+                    outbound.destination_type
+                ),
+                "work_order_number": (
+                    outbound.work_order_number
+                ),
+                "sales_invoice_number": (
+                    outbound.sales_invoice_number
+                ),
+                "status": outbound.status,
+                "created_by": outbound.created_by,
+            },
         )
 
         session.commit()
@@ -322,7 +349,8 @@ def update_outbound(
     ],
     session: SessionDependency,
     service: OutboundServiceDependency,
-    _current_user: AdminOrSellerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -353,9 +381,40 @@ def update_outbound(
                 outbound_status.value
             )
 
+        existing_outbound = service.get_outbound(
+            outbound_id
+        )
+
+        old_values = {
+            field: getattr(
+                existing_outbound,
+                field,
+            )
+            for field in update_data
+        }
+
         outbound = service.update_outbound(
             outbound_id=outbound_id,
             **update_data,
+        )
+
+        new_values = {
+            field: getattr(
+                outbound,
+                field,
+            )
+            for field in update_data
+        }
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="UPDATE",
+            module="OUTBOUND",
+            entity_type="Outbound",
+            entity_id=outbound.id,
+            description="Saída atualizada.",
+            old_values=old_values,
+            new_values=new_values,
         )
 
         session.commit()
@@ -381,9 +440,14 @@ def update_outbound(
     summary="Cancelar uma saída",
 )
 def cancel_outbound(
+    payload: Annotated[
+        OutboundCancelRequest,
+        Body(...),
+    ],
     session: SessionDependency,
     service: OutboundServiceDependency,
-    _current_user: AdminOrSellerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -393,13 +457,36 @@ def cancel_outbound(
     ),
 ) -> OutboundResponse:
     """
-    Cancela uma saída e devolve ao estoque as
-    quantidades anteriormente consumidas.
+    Cancela uma saída, restaura o estoque
+    consumido e registra a justificativa
+    na auditoria.
     """
 
     try:
+        existing_outbound = service.get_outbound(
+            outbound_id
+        )
+
+        old_values = {
+            "status": existing_outbound.status,
+        }
+
         outbound = service.cancel_outbound(
             outbound_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CANCEL",
+            module="OUTBOUND",
+            entity_type="Outbound",
+            entity_id=outbound.id,
+            description="Saída cancelada.",
+            old_values=old_values,
+            new_values={
+                "status": outbound.status,
+            },
+            justification=payload.justification,
         )
 
         session.commit()
@@ -431,7 +518,8 @@ def add_outbound_item(
     ],
     session: SessionDependency,
     service: OutboundServiceDependency,
-    _current_user: AdminOrSellerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrSellerUserDependency,
     outbound_id: int = Path(
         ...,
         gt=0,
@@ -452,6 +540,26 @@ def add_outbound_item(
             outbound_id=outbound_id,
             part_id=payload.part_id,
             quantity=payload.quantity,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="OUTBOUND",
+            entity_type="OutboundItem",
+            entity_id=outbound_item.id,
+            description="Item adicionado à saída.",
+            new_values={
+                "outbound_id": (
+                    outbound_item.outbound_id
+                ),
+                "part_id": (
+                    outbound_item.part_id
+                ),
+                "quantity": (
+                    outbound_item.quantity
+                ),
+            },
         )
 
         session.commit()
