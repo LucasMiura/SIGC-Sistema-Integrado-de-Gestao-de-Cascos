@@ -48,6 +48,9 @@ from src.services.supplier_return_service import (
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 
 
 router = APIRouter(
@@ -215,6 +218,7 @@ def create_supplier_return(
     ],
     session: SessionDependency,
     service: SupplierReturnServiceDependency,
+    audit_service: AuditServiceDependency,
     current_user: AdminOrBuyerUserDependency,
 ) -> SupplierReturnResponse:
     """
@@ -237,6 +241,42 @@ def create_supplier_return(
                 status=payload.status.value,
                 notes=payload.notes,
             )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="SUPPLIER_RETURN",
+            entity_type="SupplierReturn",
+            entity_id=supplier_return.id,
+            description=(
+                "Remessa ao fornecedor cadastrada."
+            ),
+            new_values={
+                "supplier_id": (
+                    supplier_return.supplier_id
+                ),
+                "dispatch_invoice_number": (
+                    supplier_return
+                    .dispatch_invoice_number
+                ),
+                "dispatch_invoice_series": (
+                    supplier_return
+                    .dispatch_invoice_series
+                ),
+                "issue_date": (
+                    supplier_return.issue_date
+                ),
+                "status": (
+                    supplier_return.status
+                ),
+                "notes": (
+                    supplier_return.notes
+                ),
+                "created_by": (
+                    supplier_return.created_by
+                ),
+            },
         )
 
         session.commit()
@@ -339,7 +379,8 @@ def add_supplier_return_item(
     ],
     session: SessionDependency,
     service: SupplierReturnServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminOrBuyerUserDependency,
     supplier_return_id: int = Path(
         ...,
         gt=0,
@@ -367,6 +408,31 @@ def add_supplier_return_item(
                 ),
                 quantity=payload.quantity,
             )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="SUPPLIER_RETURN",
+            entity_type="SupplierReturnItem",
+            entity_id=supplier_return_item.id,
+            description=(
+                "Item adicionado à remessa "
+                "ao fornecedor."
+            ),
+            new_values={
+                "supplier_return_id": (
+                    supplier_return_item
+                    .supplier_return_id
+                ),
+                "purchase_item_id": (
+                    supplier_return_item
+                    .purchase_item_id
+                ),
+                "quantity": (
+                    supplier_return_item.quantity
+                ),
+            },
         )
 
         session.commit()

@@ -20,7 +20,12 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     ROLE_SELLER,
 )
-
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
 
 @pytest.fixture
 def session() -> Mock:
@@ -43,11 +48,21 @@ def service() -> Mock:
         spec=CustomerReturnService,
     )
 
+@pytest.fixture
+def audit_service() -> Mock:
+    """
+    Cria um AuditService simulado.
+    """
+
+    return Mock(
+        spec=AuditService,
+    )
 
 @pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> FastAPI:
     """
     Cria uma aplicação isolada simulando
@@ -74,6 +89,9 @@ def app(
     def override_get_customer_return_service():
         return service
 
+    def override_get_audit_service():
+        return audit_service
+
     def override_get_current_user():
         return seller_user
 
@@ -88,6 +106,10 @@ def app(
     test_app.dependency_overrides[
         get_customer_return_service
     ] = override_get_customer_return_service
+
+    test_app.dependency_overrides[
+        get_audit_service
+    ] = override_get_audit_service
 
     test_app.dependency_overrides[
         get_current_user
@@ -166,6 +188,7 @@ def test_should_create_customer_return(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     customer_return = create_customer_return()
 
@@ -207,6 +230,25 @@ def test_should_create_customer_return(
         notes="Devolução de teste.",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="CUSTOMER_RETURN",
+        entity_type="CustomerReturn",
+        entity_id=10,
+        description=(
+            "Devolução de cliente cadastrada."
+        ),
+        new_values={
+            "return_type": "WORK_ORDER",
+            "reference_number": "OS-12345",
+            "customer_name": "Cliente Teste",
+            "status": "ACTIVE",
+            "notes": "Devolução de teste.",
+            "created_by": 30,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -220,6 +262,7 @@ def test_should_create_sale_customer_return(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     customer_return = create_customer_return(
         return_type="SALE",
@@ -258,12 +301,78 @@ def test_should_create_sale_customer_return(
         notes=None,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="CUSTOMER_RETURN",
+        entity_type="CustomerReturn",
+        entity_id=10,
+        description=(
+            "Devolução de cliente cadastrada."
+        ),
+        new_values={
+            "return_type": "SALE",
+            "reference_number": "NFV-12345",
+            "customer_name": "Cliente Teste",
+            "status": "ACTIVE",
+            "notes": "Devolução de teste.",
+            "created_by": 30,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
         customer_return
     )
 
+def test_should_rollback_when_audit_fails_on_create(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    customer_return = (
+        create_customer_return()
+    )
+
+    service.create_customer_return.return_value = (
+        customer_return
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/customer-returns",
+        json={
+            "return_type": "WORK_ORDER",
+            "reference_number": "OS-12345",
+            "customer_name": "Cliente Teste",
+            "status": "ACTIVE",
+            "notes": "Devolução de teste.",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.create_customer_return.assert_called_once_with(
+        return_type="WORK_ORDER",
+        reference_number="OS-12345",
+        customer_name="Cliente Teste",
+        created_by=30,
+        status="ACTIVE",
+        notes="Devolução de teste.",
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 def test_should_create_customer_return_without_notes(
     client: TestClient,
@@ -741,6 +850,7 @@ def test_should_add_customer_return_item(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     customer_return_item = (
         create_customer_return_item()
@@ -774,6 +884,23 @@ def test_should_add_customer_return_item(
         quantity=3,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="CUSTOMER_RETURN",
+        entity_type="CustomerReturnItem",
+        entity_id=20,
+        description=(
+            "Item adicionado à devolução "
+            "do cliente."
+        ),
+        new_values={
+            "customer_return_id": 10,
+            "part_id": 40,
+            "quantity": 3,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -781,6 +908,48 @@ def test_should_add_customer_return_item(
     )
 
     session.rollback.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_add_item(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    customer_return_item = (
+        create_customer_return_item()
+    )
+
+    service.add_item.return_value = (
+        customer_return_item
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/customer-returns/10/items",
+        json={
+            "part_id": 40,
+            "quantity": 3,
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.add_item.assert_called_once_with(
+        customer_return_id=10,
+        part_id=40,
+        quantity=3,
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 @pytest.mark.parametrize(

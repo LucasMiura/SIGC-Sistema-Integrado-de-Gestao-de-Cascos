@@ -41,6 +41,9 @@ from src.services.customer_return_service import (
 from src.api.dependencies.authorization import (
     OperationalUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 
 
 router = APIRouter(
@@ -167,6 +170,7 @@ def create_customer_return(
     ],
     session: SessionDependency,
     service: CustomerReturnServiceDependency,
+    audit_service: AuditServiceDependency,
     current_user: OperationalUserDependency,
 ) -> CustomerReturnResponse:
     """
@@ -193,6 +197,33 @@ def create_customer_return(
                 status=payload.status.value,
                 notes=payload.notes,
             )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="CUSTOMER_RETURN",
+            entity_type="CustomerReturn",
+            entity_id=customer_return.id,
+            description=(
+                "Devolução de cliente cadastrada."
+            ),
+            new_values={
+                "return_type": (
+                    customer_return.return_type
+                ),
+                "reference_number": (
+                    customer_return.reference_number
+                ),
+                "customer_name": (
+                    customer_return.customer_name
+                ),
+                "status": customer_return.status,
+                "notes": customer_return.notes,
+                "created_by": (
+                    customer_return.created_by
+                ),
+            },
         )
 
         session.commit()
@@ -293,7 +324,8 @@ def add_customer_return_item(
     ],
     session: SessionDependency,
     service: CustomerReturnServiceDependency,
-    _current_user: OperationalUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: OperationalUserDependency,
     customer_return_id: int = Path(
         ...,
         gt=0,
@@ -319,6 +351,30 @@ def add_customer_return_item(
                 part_id=payload.part_id,
                 quantity=payload.quantity,
             )
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="CUSTOMER_RETURN",
+            entity_type="CustomerReturnItem",
+            entity_id=customer_return_item.id,
+            description=(
+                "Item adicionado à devolução "
+                "do cliente."
+            ),
+            new_values={
+                "customer_return_id": (
+                    customer_return_item
+                    .customer_return_id
+                ),
+                "part_id": (
+                    customer_return_item.part_id
+                ),
+                "quantity": (
+                    customer_return_item.quantity
+                ),
+            },
         )
 
         session.commit()

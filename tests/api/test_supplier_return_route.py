@@ -20,6 +20,12 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     ROLE_BUYER,
 )
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
 
 
 @pytest.fixture
@@ -39,11 +45,19 @@ def service() -> Mock:
         spec=SupplierReturnService,
     )
 
+@pytest.fixture
+def audit_service() -> Mock:
+    """Cria um AuditService simulado."""
+
+    return Mock(
+        spec=AuditService,
+    )
 
 @pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> FastAPI:
     """
     Cria uma aplicação isolada simulando
@@ -70,6 +84,9 @@ def app(
     def override_get_supplier_return_service():
         return service
 
+    def override_get_audit_service():
+        return audit_service
+
     def override_get_current_user():
         return buyer_user
 
@@ -84,6 +101,10 @@ def app(
     test_app.dependency_overrides[
         get_supplier_return_service
     ] = override_get_supplier_return_service
+
+    test_app.dependency_overrides[
+        get_audit_service
+    ] = override_get_audit_service
 
     test_app.dependency_overrides[
         get_current_user
@@ -162,6 +183,7 @@ def test_should_create_supplier_return(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     supplier_return = create_supplier_return()
 
@@ -212,6 +234,28 @@ def test_should_create_supplier_return(
         notes="Remessa de teste.",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="SUPPLIER_RETURN",
+        entity_type="SupplierReturn",
+        entity_id=10,
+        description=(
+            "Remessa ao fornecedor cadastrada."
+        ),
+        new_values={
+            "supplier_id": 20,
+            "dispatch_invoice_number": (
+                "NF-REMESSA-12345"
+            ),
+            "dispatch_invoice_series": "1",
+            "issue_date": "2026-08-05",
+            "status": "ACTIVE",
+            "notes": "Remessa de teste.",
+            "created_by": 30,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -225,6 +269,7 @@ def test_should_create_supplier_return_without_optional_fields(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     supplier_return = create_supplier_return(
         dispatch_invoice_series=None,
@@ -266,11 +311,87 @@ def test_should_create_supplier_return_without_optional_fields(
         notes=None,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="SUPPLIER_RETURN",
+        entity_type="SupplierReturn",
+        entity_id=10,
+        description=(
+            "Remessa ao fornecedor cadastrada."
+        ),
+        new_values={
+            "supplier_id": 20,
+            "dispatch_invoice_number": (
+                "NF-REMESSA-12345"
+            ),
+            "dispatch_invoice_series": None,
+            "issue_date": "2026-08-05",
+            "status": "ACTIVE",
+            "notes": None,
+            "created_by": 30,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
         supplier_return
     )
+
+def test_should_rollback_when_audit_fails_on_create(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    supplier_return = (
+        create_supplier_return()
+    )
+
+    service.create_supplier_return.return_value = (
+        supplier_return
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/supplier-returns",
+        json={
+            "supplier_id": 20,
+            "dispatch_invoice_number": (
+                "NF-REMESSA-12345"
+            ),
+            "dispatch_invoice_series": "1",
+            "issue_date": "2026-08-05",
+            "status": "ACTIVE",
+            "notes": "Remessa de teste.",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.create_supplier_return.assert_called_once_with(
+        supplier_id=20,
+        dispatch_invoice_number=(
+            "NF-REMESSA-12345"
+        ),
+        dispatch_invoice_series="1",
+        issue_date="2026-08-05",
+        created_by=30,
+        status="ACTIVE",
+        notes="Remessa de teste.",
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -799,6 +920,7 @@ def test_should_add_supplier_return_item(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     supplier_return_item = (
         create_supplier_return_item()
@@ -832,6 +954,23 @@ def test_should_add_supplier_return_item(
         quantity=4,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=30,
+        action="CREATE",
+        module="SUPPLIER_RETURN",
+        entity_type="SupplierReturnItem",
+        entity_id=40,
+        description=(
+            "Item adicionado à remessa "
+            "ao fornecedor."
+        ),
+        new_values={
+            "supplier_return_id": 10,
+            "purchase_item_id": 50,
+            "quantity": 4,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -840,6 +979,47 @@ def test_should_add_supplier_return_item(
 
     session.rollback.assert_not_called()
 
+def test_should_rollback_when_audit_fails_on_add_item(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    supplier_return_item = (
+        create_supplier_return_item()
+    )
+
+    service.add_item.return_value = (
+        supplier_return_item
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/supplier-returns/10/items",
+        json={
+            "purchase_item_id": 50,
+            "quantity": 4,
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.add_item.assert_called_once_with(
+        supplier_return_id=10,
+        purchase_item_id=50,
+        quantity=4,
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 @pytest.mark.parametrize(
     (
