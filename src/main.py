@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from src.api.routes import (
     audit_router,
     customer_return_router,
+    dashboard_router,
     outbound_router,
     part_router,
     purchase_router,
@@ -32,6 +33,10 @@ app.include_router(
 
 app.include_router(
     auth_router
+)
+
+app.include_router(
+    dashboard_router
 )
 
 app.include_router(

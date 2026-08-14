@@ -3,6 +3,9 @@
 from src.api.routes.customer_return_route import (
     router as customer_return_router,
 )
+from src.api.routes.dashboard_route import (
+    router as dashboard_router,
+)
 from src.api.routes.outbound_route import (
     router as outbound_router,
 )
@@ -47,6 +50,7 @@ from src.api.routes.audit_route import (
 __all__ = [
     "audit_router",
     "customer_return_router",
+    "dashboard_router",
     "outbound_router",
     "part_router",
     "purchase_router",
