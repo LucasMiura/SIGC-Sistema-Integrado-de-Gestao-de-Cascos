@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 from src.database.connection import get_session
 from src.repositories.supplier_contact_repository import (
     SupplierContactRepository,
@@ -21,6 +24,7 @@ from src.repositories.supplier_repository import (
 )
 from src.schemas.supplier_contact_schema import (
     SupplierContactCreateRequest,
+    SupplierContactDeactivateRequest,
     SupplierContactResponse,
     SupplierContactUpdateRequest,
 )
@@ -127,7 +131,8 @@ def create_supplier_contact(
     request: SupplierContactCreateRequest,
     service: SupplierContactServiceDependency,
     session: SessionDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -149,6 +154,26 @@ def create_supplier_contact(
             phone=request.phone,
             position=request.position,
             is_primary=request.is_primary,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="SUPPLIER_CONTACT",
+            entity_type="SupplierContact",
+            entity_id=contact.id,
+            description=(
+                "Contato de fornecedor cadastrado."
+            ),
+            new_values={
+                "supplier_id": contact.supplier_id,
+                "name": contact.name,
+                "email": contact.email,
+                "phone": contact.phone,
+                "position": contact.position,
+                "is_primary": contact.is_primary,
+                "is_active": contact.is_active,
+            },
         )
 
         session.commit()
@@ -266,7 +291,8 @@ def update_supplier_contact(
     request: SupplierContactUpdateRequest,
     service: SupplierContactServiceDependency,
     session: SessionDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -287,11 +313,51 @@ def update_supplier_contact(
             exclude_unset=True
         )
 
+        old_values = None
+
+        if update_data:
+            existing_contact = (
+                service.get_required(
+                    supplier_id=supplier_id,
+                    contact_id=contact_id,
+                )
+            )
+
+            old_values = {
+                field: getattr(
+                    existing_contact,
+                    field,
+                )
+                for field in update_data
+            }
+
         contact = service.update(
             supplier_id=supplier_id,
             contact_id=contact_id,
             **update_data,
         )
+
+        if update_data:
+            new_values = {
+                field: getattr(
+                    contact,
+                    field,
+                )
+                for field in update_data
+            }
+
+            audit_service.register(
+                user_id=current_user.id,
+                action="UPDATE",
+                module="SUPPLIER_CONTACT",
+                entity_type="SupplierContact",
+                entity_id=contact.id,
+                description=(
+                    "Contato de fornecedor atualizado."
+                ),
+                old_values=old_values,
+                new_values=new_values,
+            )
 
         session.commit()
 
@@ -326,7 +392,8 @@ def update_supplier_contact(
 def activate_supplier_contact(
     service: SupplierContactServiceDependency,
     session: SessionDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -346,6 +413,23 @@ def activate_supplier_contact(
         contact = service.activate(
             supplier_id=supplier_id,
             contact_id=contact_id,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="ACTIVATE",
+            module="SUPPLIER_CONTACT",
+            entity_type="SupplierContact",
+            entity_id=contact.id,
+            description=(
+                "Contato de fornecedor ativado."
+            ),
+            old_values={
+                "is_active": 0,
+            },
+            new_values={
+                "is_active": 1,
+            },
         )
 
         session.commit()
@@ -379,9 +463,11 @@ def activate_supplier_contact(
     summary="Desativar contato de fornecedor",
 )
 def deactivate_supplier_contact(
+    request: SupplierContactDeactivateRequest,
     service: SupplierContactServiceDependency,
     session: SessionDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -399,9 +485,40 @@ def deactivate_supplier_contact(
     """
 
     try:
+        existing_contact = service.get_required(
+            supplier_id=supplier_id,
+            contact_id=contact_id,
+        )
+
+        old_is_primary = (
+            existing_contact.is_primary
+        )
+
         contact = service.deactivate(
             supplier_id=supplier_id,
             contact_id=contact_id,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="DEACTIVATE",
+            module="SUPPLIER_CONTACT",
+            entity_type="SupplierContact",
+            entity_id=contact.id,
+            description=(
+                "Contato de fornecedor desativado."
+            ),
+            old_values={
+                "is_active": 1,
+                "is_primary": old_is_primary,
+            },
+            new_values={
+                "is_active": 0,
+                "is_primary": 0,
+            },
+            justification=(
+                request.justification
+            ),
         )
 
         session.commit()

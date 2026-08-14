@@ -4,6 +4,9 @@ from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
 
 from src.api.routes.supplier_contact_route import (
     get_supplier_contact_service,
@@ -12,6 +15,9 @@ from src.database.connection import get_session
 from src.main import app
 from src.services.supplier_contact_service import (
     SupplierContactService,
+)
+from src.services.audit_service import (
+    AuditService,
 )
 from src.api.dependencies.auth import (
     get_current_user,
@@ -40,11 +46,21 @@ def session_mock() -> Mock:
 
     return session
 
+@pytest.fixture
+def audit_service() -> Mock:
+    """
+    Cria um mock do serviço de auditoria.
+    """
+
+    return Mock(
+        spec=AuditService,
+    )
 
 @pytest.fixture
 def client(
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> Generator[TestClient, None, None]:
     """
     Cria o cliente simulando um Comprador
@@ -66,6 +82,9 @@ def client(
     def override_supplier_contact_service() -> Mock:
         return service_mock
 
+    def override_audit_service() -> Mock:
+        return audit_service
+
     def override_session() -> Generator[
         Mock,
         None,
@@ -85,6 +104,10 @@ def client(
     ] = override_supplier_contact_service
 
     app.dependency_overrides[
+        get_audit_service
+    ] = override_audit_service
+
+    app.dependency_overrides[
         get_session
     ] = override_session
 
@@ -92,7 +115,10 @@ def client(
         get_current_user
     ] = override_get_current_user
 
-    with TestClient(app) as test_client:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as test_client:
         yield test_client
 
     app.dependency_overrides.clear()
@@ -157,6 +183,7 @@ def test_should_create_supplier_contact_with_status_201(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
     contact = create_contact()
 
@@ -183,6 +210,26 @@ def test_should_create_supplier_contact_with_status_201(
         phone="(13) 99999-1111",
         position="Garantia",
         is_primary=True,
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="CREATE",
+        module="SUPPLIER_CONTACT",
+        entity_type="SupplierContact",
+        entity_id=10,
+        description=(
+            "Contato de fornecedor cadastrado."
+        ),
+        new_values={
+            "supplier_id": 1,
+            "name": "João Silva",
+            "email": "joao@fornecedor.com",
+            "phone": "(13) 99999-1111",
+            "position": "Garantia",
+            "is_primary": 1,
+            "is_active": 1,
+        },
     )
 
     session_mock.commit.assert_called_once_with()
@@ -260,10 +307,17 @@ def test_should_update_only_informed_contact_fields(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
+    original_contact = create_contact()
+
     contact = create_contact(
         phone="(13) 98888-2222",
         position="Pós-venda",
+    )
+
+    service_mock.get_required.return_value = (
+        original_contact
     )
 
     service_mock.update.return_value = contact
@@ -283,6 +337,11 @@ def test_should_update_only_informed_contact_fields(
         position="Pós-venda",
     )
 
+    service_mock.get_required.assert_called_once_with(
+        supplier_id=1,
+        contact_id=10,
+    )
+
     service_mock.update.assert_called_once_with(
         supplier_id=1,
         contact_id=10,
@@ -290,8 +349,31 @@ def test_should_update_only_informed_contact_fields(
         position="Pós-venda",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="UPDATE",
+        module="SUPPLIER_CONTACT",
+        entity_type="SupplierContact",
+        entity_id=10,
+        description=(
+            "Contato de fornecedor atualizado."
+        ),
+        old_values={
+            "phone": "(13) 99999-1111",
+            "position": "Garantia",
+        },
+        new_values={
+            "phone": "(13) 98888-2222",
+            "position": "Pós-venda",
+        },
+    )
+
     session_mock.commit.assert_called_once_with()
-    session_mock.refresh.assert_called_once_with(contact)
+
+    session_mock.refresh.assert_called_once_with(
+        contact
+    )
+
     session_mock.rollback.assert_not_called()
 
 
@@ -342,16 +424,32 @@ def test_should_deactivate_supplier_contact(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
+    existing_contact = create_contact(
+        is_primary=1,
+        is_active=1,
+    )
+
     contact = create_contact(
         is_primary=0,
         is_active=0,
     )
 
+    service_mock.get_required.return_value = (
+        existing_contact
+    )
+
     service_mock.deactivate.return_value = contact
 
     response = client.patch(
-        "/suppliers/1/contacts/10/deactivate"
+        "/suppliers/1/contacts/10/deactivate",
+        json={
+            "justification": (
+                "Contato não trabalha mais "
+                "com o fornecedor."
+            ),
+        },
     )
 
     assert response.status_code == 200
@@ -361,13 +459,45 @@ def test_should_deactivate_supplier_contact(
         is_active=False,
     )
 
+    service_mock.get_required.assert_called_once_with(
+        supplier_id=1,
+        contact_id=10,
+    )
+
     service_mock.deactivate.assert_called_once_with(
         supplier_id=1,
         contact_id=10,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="DEACTIVATE",
+        module="SUPPLIER_CONTACT",
+        entity_type="SupplierContact",
+        entity_id=10,
+        description=(
+            "Contato de fornecedor desativado."
+        ),
+        old_values={
+            "is_active": 1,
+            "is_primary": 1,
+        },
+        new_values={
+            "is_active": 0,
+            "is_primary": 0,
+        },
+        justification=(
+            "Contato não trabalha mais "
+            "com o fornecedor."
+        ),
+    )
+
     session_mock.commit.assert_called_once_with()
-    session_mock.refresh.assert_called_once_with(contact)
+
+    session_mock.refresh.assert_called_once_with(
+        contact
+    )
+
     session_mock.rollback.assert_not_called()
 
 
@@ -375,6 +505,7 @@ def test_should_activate_supplier_contact(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
     contact = create_contact(
         is_primary=0,
@@ -397,6 +528,23 @@ def test_should_activate_supplier_contact(
     service_mock.activate.assert_called_once_with(
         supplier_id=1,
         contact_id=10,
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="ACTIVATE",
+        module="SUPPLIER_CONTACT",
+        entity_type="SupplierContact",
+        entity_id=10,
+        description=(
+            "Contato de fornecedor ativado."
+        ),
+        old_values={
+            "is_active": 0,
+        },
+        new_values={
+            "is_active": 1,
+        },
     )
 
     session_mock.commit.assert_called_once_with()
@@ -482,12 +630,23 @@ def test_should_return_400_when_contact_is_already_inactive(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
+    service_mock.get_required.return_value = (
+        create_contact(
+            is_primary=0,
+            is_active=0,
+        )
+    )
     service_mock.deactivate.side_effect = ValueError(
         "O contato já está inativo."
     )
 
     response = client.patch(
-        "/suppliers/1/contacts/10/deactivate"
+        "/suppliers/1/contacts/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
     )
 
     assert response.status_code == 400
@@ -497,6 +656,121 @@ def test_should_return_400_when_contact_is_already_inactive(
     }
 
     session_mock.rollback.assert_called_once_with()
+    session_mock.commit.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_deactivate_justification_is_invalid(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.patch(
+        "/suppliers/1/contacts/10/deactivate",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service_mock.get_required.assert_not_called()
+    service_mock.deactivate.assert_not_called()
+
+    session_mock.commit.assert_not_called()
+    session_mock.rollback.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
+
+def test_should_return_422_when_deactivate_has_extra_field(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    response = client.patch(
+        "/suppliers/1/contacts/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+            "unexpected_field": "value",
+        },
+    )
+
+    assert response.status_code == 422
+
+    service_mock.get_required.assert_not_called()
+    service_mock.deactivate.assert_not_called()
+
+    session_mock.commit.assert_not_called()
+    session_mock.rollback.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
+
+def test_should_rollback_when_audit_fails_on_deactivate(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+    audit_service: Mock,
+) -> None:
+    existing_contact = create_contact(
+        is_primary=1,
+        is_active=1,
+    )
+
+    contact = create_contact(
+        is_primary=0,
+        is_active=0,
+    )
+
+    service_mock.get_required.return_value = (
+        existing_contact
+    )
+
+    service_mock.deactivate.return_value = contact
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/suppliers/1/contacts/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service_mock.get_required.assert_called_once_with(
+        supplier_id=1,
+        contact_id=10,
+    )
+
+    service_mock.deactivate.assert_called_once_with(
+        supplier_id=1,
+        contact_id=10,
+    )
+
+    audit_service.register.assert_called_once()
+
+    session_mock.rollback.assert_called_once_with()
+
     session_mock.commit.assert_not_called()
     session_mock.refresh.assert_not_called()
 
@@ -548,6 +822,59 @@ def test_should_rollback_when_update_fails(
     }
 
     session_mock.rollback.assert_called_once_with()
+    session_mock.commit.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
+def test_should_rollback_when_audit_fails_on_update(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+    audit_service: Mock,
+) -> None:
+    original_contact = create_contact()
+
+    updated_contact = create_contact(
+        phone="(13) 98888-2222",
+    )
+
+    service_mock.get_required.return_value = (
+        original_contact
+    )
+
+    service_mock.update.return_value = (
+        updated_contact
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.put(
+        "/suppliers/1/contacts/10",
+        json={
+            "phone": "(13) 98888-2222",
+        },
+    )
+
+    assert response.status_code == 500
+
+    service_mock.get_required.assert_called_once_with(
+        supplier_id=1,
+        contact_id=10,
+    )
+
+    service_mock.update.assert_called_once_with(
+        supplier_id=1,
+        contact_id=10,
+        phone="(13) 98888-2222",
+    )
+
+    audit_service.register.assert_called_once()
+
+    session_mock.rollback.assert_called_once_with()
+
     session_mock.commit.assert_not_called()
     session_mock.refresh.assert_not_called()
 

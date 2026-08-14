@@ -72,6 +72,26 @@ class SupplierUpdateRequest(BaseModel):
         description="Novas observações sobre o fornecedor",
     )
 
+class SupplierDeactivateRequest(BaseModel):
+    """
+    Dados obrigatórios para desativar
+    um fornecedor.
+    """
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para a desativação"
+        ),
+    )
 
 class SupplierResponse(BaseModel):
     """Representa um fornecedor retornado pela API."""

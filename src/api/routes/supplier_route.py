@@ -13,12 +13,16 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 from src.database.connection import get_session
 from src.repositories.supplier_repository import (
     SupplierRepository,
 )
 from src.schemas.supplier_schema import (
     SupplierCreateRequest,
+    SupplierDeactivateRequest,
     SupplierResponse,
     SupplierUpdateRequest,
 )
@@ -112,7 +116,8 @@ def create_supplier(
     ],
     session: SessionDependency,
     service: SupplierServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
 ) -> SupplierResponse:
     """
     Cadastra um novo fornecedor.
@@ -127,6 +132,22 @@ def create_supplier(
             document=request.document,
             address=request.address,
             notes=request.notes,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="SUPPLIER",
+            entity_type="Supplier",
+            entity_id=supplier.id,
+            description="Fornecedor cadastrado.",
+            new_values={
+                "name": supplier.name,
+                "document": supplier.document,
+                "address": supplier.address,
+                "notes": supplier.notes,
+                "is_active": supplier.is_active,
+            },
         )
 
         session.commit()
@@ -225,7 +246,8 @@ def update_supplier(
     ],
     session: SessionDependency,
     service: SupplierServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -244,10 +266,47 @@ def update_supplier(
             exclude_unset=True,
         )
 
+        old_values = None
+
+        if update_data:
+            existing_supplier = (
+                service.get_required(
+                    supplier_id
+                )
+            )
+
+            old_values = {
+                field: getattr(
+                    existing_supplier,
+                    field,
+                )
+                for field in update_data
+            }
+
         supplier = service.update(
             supplier_id,
             **update_data,
         )
+
+        if update_data:
+            new_values = {
+                field: getattr(
+                    supplier,
+                    field,
+                )
+                for field in update_data
+            }
+
+            audit_service.register(
+                user_id=current_user.id,
+                action="UPDATE",
+                module="SUPPLIER",
+                entity_type="Supplier",
+                entity_id=supplier.id,
+                description="Fornecedor atualizado.",
+                old_values=old_values,
+                new_values=new_values,
+            )
 
         session.commit()
 
@@ -280,7 +339,8 @@ def update_supplier(
 def activate_supplier(
     session: SessionDependency,
     service: SupplierServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -294,6 +354,21 @@ def activate_supplier(
     try:
         supplier = service.activate(
             supplier_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="ACTIVATE",
+            module="SUPPLIER",
+            entity_type="Supplier",
+            entity_id=supplier.id,
+            description="Fornecedor ativado.",
+            old_values={
+                "is_active": 0,
+            },
+            new_values={
+                "is_active": 1,
+            },
         )
 
         session.commit()
@@ -325,9 +400,14 @@ def activate_supplier(
     summary="Desativar fornecedor",
 )
 def deactivate_supplier(
+    request: Annotated[
+        SupplierDeactivateRequest,
+        Body(...),
+    ],
     session: SessionDependency,
     service: SupplierServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     supplier_id: int = Path(
         ...,
         gt=0,
@@ -342,6 +422,24 @@ def deactivate_supplier(
     try:
         supplier = service.deactivate(
             supplier_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="DEACTIVATE",
+            module="SUPPLIER",
+            entity_type="Supplier",
+            entity_id=supplier.id,
+            description="Fornecedor desativado.",
+            old_values={
+                "is_active": 1,
+            },
+            new_values={
+                "is_active": 0,
+            },
+            justification=(
+                request.justification
+            ),
         )
 
         session.commit()

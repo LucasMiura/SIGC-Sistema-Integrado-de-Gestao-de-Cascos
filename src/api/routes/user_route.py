@@ -16,6 +16,9 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     AdminUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 from src.database.connection import get_session
 from src.repositories.role_repository import (
     RoleRepository,
@@ -26,6 +29,7 @@ from src.repositories.user_repository import (
 from src.schemas.user_schema import (
     UserChangePasswordRequest,
     UserCreateRequest,
+    UserDeactivateRequest,
     UserResetPasswordRequest,
     UserResponse,
     UserUpdateRequest,
@@ -140,7 +144,8 @@ def create_user(
     ],
     session: SessionDependency,
     service: UserServiceDependency,
-    _current_user: AdminUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminUserDependency,
 ) -> UserResponse:
     """
     Cadastra um novo usuário ativo.
@@ -155,6 +160,22 @@ def create_user(
             email=request.email,
             password=request.password,
             role_id=request.role_id,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="USER",
+            entity_type="User",
+            entity_id=user.id,
+            description="Usuário cadastrado.",
+            new_values={
+                "full_name": user.full_name,
+                "username": user.username,
+                "email": user.email,
+                "role_id": user.role_id,
+                "is_active": user.is_active,
+            },
         )
 
         session.commit()
@@ -254,7 +275,8 @@ def update_user(
     ],
     session: SessionDependency,
     service: UserServiceDependency,
-    _current_user: AdminUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
@@ -273,10 +295,45 @@ def update_user(
             exclude_unset=True,
         )
 
+        old_values: dict[str, object] = {}
+
+        if update_data:
+            existing_user = service.get_required(
+                user_id
+            )
+
+            old_values = {
+                field: getattr(
+                    existing_user,
+                    field,
+                )
+                for field in update_data
+            }
+
         user = service.update(
             user_id,
             **update_data,
         )
+
+        if update_data:
+            new_values = {
+                field: getattr(
+                    user,
+                    field,
+                )
+                for field in update_data
+            }
+
+            audit_service.register(
+                user_id=current_user.id,
+                action="UPDATE",
+                module="USER",
+                entity_type="User",
+                entity_id=user.id,
+                description="Usuário atualizado.",
+                old_values=old_values,
+                new_values=new_values,
+            )
 
         session.commit()
 
@@ -309,7 +366,8 @@ def update_user(
 def activate_user(
     session: SessionDependency,
     service: UserServiceDependency,
-    _current_user: AdminUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
@@ -325,6 +383,21 @@ def activate_user(
     try:
         user = service.activate(
             user_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="ACTIVATE",
+            module="USER",
+            entity_type="User",
+            entity_id=user.id,
+            description="Usuário ativado.",
+            old_values={
+                "is_active": 0,
+            },
+            new_values={
+                "is_active": 1,
+            },
         )
 
         session.commit()
@@ -356,9 +429,14 @@ def activate_user(
     summary="Desativar usuário",
 )
 def deactivate_user(
+    request: Annotated[
+        UserDeactivateRequest,
+        Body(...),
+    ],
     session: SessionDependency,
     service: UserServiceDependency,
-    _current_user: AdminUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
@@ -375,6 +453,22 @@ def deactivate_user(
     try:
         user = service.deactivate(
             user_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="DEACTIVATE",
+            module="USER",
+            entity_type="User",
+            entity_id=user.id,
+            description="Usuário desativado.",
+            old_values={
+                "is_active": 1,
+            },
+            new_values={
+                "is_active": 0,
+            },
+            justification=request.justification,
         )
 
         session.commit()
@@ -412,7 +506,8 @@ def reset_user_password(
     ],
     session: SessionDependency,
     service: UserServiceDependency,
-    _current_user: AdminUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminUserDependency,
     user_id: int = Path(
         ...,
         gt=0,
@@ -430,6 +525,18 @@ def reset_user_password(
             user_id=user_id,
             new_password=(
                 request.new_password
+            ),
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="RESET_PASSWORD",
+            module="USER",
+            entity_type="User",
+            entity_id=user.id,
+            description=(
+                "Senha do usuário redefinida "
+                "administrativamente."
             ),
         )
 
@@ -469,6 +576,7 @@ def change_own_password(
     session: SessionDependency,
     service: UserServiceDependency,
     current_user: CurrentUserDependency,
+    audit_service: AuditServiceDependency,
 ) -> UserResponse:
     """
     Altera a senha do próprio usuário autenticado.
@@ -485,6 +593,17 @@ def change_own_password(
             ),
             new_password=(
                 request.new_password
+            ),
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CHANGE_PASSWORD",
+            module="USER",
+            entity_type="User",
+            entity_id=user.id,
+            description=(
+                "Usuário alterou a própria senha."
             ),
         )
 

@@ -111,6 +111,27 @@ class UserUpdateRequest(BaseModel):
         description="Novo perfil de acesso",
     )
 
+class UserDeactivateRequest(BaseModel):
+    """
+    Dados obrigatórios para desativar
+    um usuário.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para a desativação"
+        ),
+    )
+
 
 class UserResetPasswordRequest(BaseModel):
     """

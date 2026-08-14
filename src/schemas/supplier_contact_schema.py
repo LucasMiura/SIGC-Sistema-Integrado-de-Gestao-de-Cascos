@@ -96,6 +96,27 @@ class SupplierContactUpdateRequest(BaseModel):
         ),
     )
 
+class SupplierContactDeactivateRequest(BaseModel):
+    """
+    Dados obrigatórios para desativar
+    um contato de fornecedor.
+    """
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para a desativação"
+        ),
+    )
+
 
 class SupplierContactResponse(BaseModel):
     """Representa um contato retornado pela API."""

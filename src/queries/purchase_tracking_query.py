@@ -26,6 +26,37 @@ class PurchaseTrackingQuery:
     def __init__(self, session: Session):
         self.session = session
 
+    def get_by_invoice(
+        self,
+        *,
+        supplier_id: int,
+        invoice_number: str,
+        invoice_series: str | None,
+    ) -> PurchaseTrackingDTO | None:
+        """
+        Localiza uma compra pela Nota Fiscal
+        e retorna seu acompanhamento consolidado.
+        """
+
+        statement = select(
+            Purchase.id
+        ).where(
+            Purchase.supplier_id == supplier_id,
+            Purchase.invoice_number == invoice_number,
+            Purchase.invoice_series == invoice_series,
+        )
+
+        purchase_id = self.session.scalar(
+            statement
+        )
+
+        if purchase_id is None:
+            return None
+
+        return self.get_by_purchase_id(
+            purchase_id
+        )
+
     def get_by_purchase_id(
         self,
         purchase_id: int,

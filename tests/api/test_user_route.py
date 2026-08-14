@@ -20,6 +20,12 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     ROLE_ADMIN,
 )
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
 
 
 @pytest.fixture
@@ -35,11 +41,18 @@ def service() -> Mock:
         spec=UserService,
     )
 
+@pytest.fixture
+def audit_service() -> Mock:
+    return Mock(
+        spec=AuditService,
+    )
+
 
 @pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> FastAPI:
     test_app = FastAPI()
 
@@ -73,6 +86,9 @@ def app(
     def override_get_user_service():
         return service
 
+    def override_get_audit_service():
+        return audit_service
+
     def override_get_current_user():
         return admin_user
 
@@ -87,6 +103,10 @@ def app(
     test_app.dependency_overrides[
         get_user_service
     ] = override_get_user_service
+
+    test_app.dependency_overrides[
+        get_audit_service
+    ] = override_get_audit_service
 
     test_app.dependency_overrides[
         get_current_user
@@ -160,6 +180,7 @@ def test_should_create_user(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user()
 
@@ -191,6 +212,22 @@ def test_should_create_user(
         email="lucas@example.com",
         password="SenhaSegura123",
         role_id=1,
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="CREATE",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description="Usuário cadastrado.",
+        new_values={
+            "full_name": "Lucas Miura",
+            "username": "lucas.miura",
+            "email": "lucas@example.com",
+            "role_id": 1,
+            "is_active": 1,
+        },
     )
 
     session.commit.assert_called_once_with()
@@ -690,12 +727,17 @@ def test_should_update_user(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user(
         full_name="Lucas Atualizado",
         username="lucas.atualizado",
         email="novo@example.com",
         role_id=2,
+    )
+
+    service.get_required.return_value = (
+        create_user()
     )
 
     service.update.return_value = user
@@ -729,6 +771,31 @@ def test_should_update_user(
         role_id=2,
     )
 
+    service.get_required.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="UPDATE",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description="Usuário atualizado.",
+        old_values={
+            "full_name": "Lucas Miura",
+            "username": "lucas.miura",
+            "email": "lucas@example.com",
+            "role_id": 1,
+        },
+        new_values={
+            "full_name": "Lucas Atualizado",
+            "username": "lucas.atualizado",
+            "email": "novo@example.com",
+            "role_id": 2,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -742,9 +809,14 @@ def test_should_update_only_provided_user_field(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user(
         full_name="Novo Nome",
+    )
+
+    service.get_required.return_value = (
+        create_user()
     )
 
     service.update.return_value = user
@@ -763,6 +835,21 @@ def test_should_update_only_provided_user_field(
         full_name="Novo Nome",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="UPDATE",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description="Usuário atualizado.",
+        old_values={
+            "full_name": "Lucas Miura",
+        },
+        new_values={
+            "full_name": "Novo Nome",
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -774,6 +861,7 @@ def test_should_allow_empty_update_payload(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user()
 
@@ -789,6 +877,10 @@ def test_should_allow_empty_update_payload(
     service.update.assert_called_once_with(
         10
     )
+
+    service.get_required.assert_not_called()
+
+    audit_service.register.assert_not_called()
 
     session.commit.assert_called_once_with()
 
@@ -950,6 +1042,7 @@ def test_should_activate_user(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user(
         is_active=1,
@@ -973,6 +1066,21 @@ def test_should_activate_user(
         10
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="ACTIVATE",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description="Usuário ativado.",
+        old_values={
+            "is_active": 0,
+        },
+        new_values={
+            "is_active": 1,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -984,6 +1092,7 @@ def test_should_deactivate_user(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user(
         is_active=0,
@@ -992,7 +1101,12 @@ def test_should_deactivate_user(
     service.deactivate.return_value = user
 
     response = client.patch(
-        "/users/10/deactivate"
+        "/users/10/deactivate",
+        json={
+            "justification": (
+                "Usuário desligado da empresa."
+            ),
+        },
     )
 
     assert response.status_code == 200
@@ -1007,11 +1121,56 @@ def test_should_deactivate_user(
         10
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="DEACTIVATE",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description="Usuário desativado.",
+        old_values={
+            "is_active": 1,
+        },
+        new_values={
+            "is_active": 0,
+        },
+        justification=(
+            "Usuário desligado da empresa."
+        ),
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
         user
     )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_deactivate_justification_is_invalid(
+    client: TestClient,
+    service: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.patch(
+        "/users/10/deactivate",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service.deactivate.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -1066,9 +1225,21 @@ def test_should_convert_business_error_on_user_status_change(
         ValueError(message)
     )
 
-    response = client.patch(
-        endpoint
-    )
+    if endpoint.endswith(
+        "/deactivate"
+    ):
+        response = client.patch(
+            endpoint,
+            json={
+                "justification": (
+                    "Desativação de teste."
+                ),
+            },
+        )
+    else:
+        response = client.patch(
+            endpoint
+        )
 
     assert response.status_code == expected_status
 
@@ -1097,9 +1268,21 @@ def test_should_return_422_when_user_id_is_invalid_on_status_change(
     service: Mock,
     endpoint: str,
 ) -> None:
-    response = client.patch(
-        endpoint
-    )
+    if endpoint.endswith(
+        "/deactivate"
+    ):
+        response = client.patch(
+            endpoint,
+            json={
+                "justification": (
+                    "Desativação de teste."
+                ),
+            },
+        )
+    else:
+        response = client.patch(
+            endpoint
+        )
 
     assert response.status_code == 422
 
@@ -1115,6 +1298,7 @@ def test_should_reset_user_password(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user()
 
@@ -1138,6 +1322,18 @@ def test_should_reset_user_password(
     service.reset_password.assert_called_once_with(
         user_id=10,
         new_password="NovaSenhaSegura123",
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="RESET_PASSWORD",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description=(
+            "Senha do usuário redefinida "
+            "administrativamente."
+        ),
     )
 
     session.commit.assert_called_once_with()
@@ -1243,6 +1439,7 @@ def test_should_change_user_password(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     user = create_user()
 
@@ -1268,12 +1465,61 @@ def test_should_change_user_password(
         new_password="SenhaNova123",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=10,
+        action="CHANGE_PASSWORD",
+        module="USER",
+        entity_type="User",
+        entity_id=10,
+        description=(
+            "Usuário alterou a própria senha."
+        ),
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
         user
     )
 
+def test_should_rollback_when_audit_fails_on_deactivate(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    service.deactivate.return_value = (
+        create_user(
+            is_active=0,
+        )
+    )
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/users/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.deactivate.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 @pytest.mark.parametrize(
     "payload",
@@ -1437,7 +1683,9 @@ def test_should_return_422_when_user_id_is_invalid_on_password_operation(
         (
             "/users/10/deactivate",
             "deactivate",
-            None,
+            {
+                "justification": "Desativação de teste.",
+            },
         ),
         (
             "/users/10/reset-password",

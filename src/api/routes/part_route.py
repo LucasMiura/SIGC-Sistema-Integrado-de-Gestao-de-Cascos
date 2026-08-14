@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 from src.database.connection import get_session
 from src.repositories.part_repository import (
     PartRepository,
@@ -23,6 +26,7 @@ from src.repositories.supplier_repository import (
 )
 from src.schemas.part_schema import (
     PartCreateRequest,
+    PartDeactivateRequest,
     PartResponse,
     PartUpdateRequest,
 )
@@ -126,7 +130,8 @@ def create_part(
     ],
     session: SessionDependency,
     service: PartServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
 ) -> PartResponse:
     """
     Cadastra uma peça controlada pelo SIGC.
@@ -141,6 +146,25 @@ def create_part(
             return_deadline_days=(
                 request.return_deadline_days
             ),
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="PART",
+            entity_type="Part",
+            entity_id=part.id,
+            description="Peça cadastrada.",
+            new_values={
+                "supplier_id": part.supplier_id,
+                "part_code": part.part_code,
+                "name": part.name,
+                "description": part.description,
+                "return_deadline_days": (
+                    part.return_deadline_days
+                ),
+                "is_active": part.is_active,
+            },
         )
 
         session.commit()
@@ -257,7 +281,8 @@ def update_part(
     ],
     session: SessionDependency,
     service: PartServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     part_id: int = Path(
         ...,
         gt=0,
@@ -273,10 +298,45 @@ def update_part(
             exclude_unset=True
         )
 
+        old_values = None
+
+        if update_data:
+            existing_part = service.get_required(
+                part_id
+            )
+
+            old_values = {
+                field: getattr(
+                    existing_part,
+                    field,
+                )
+                for field in update_data
+            }
+
         part = service.update(
             part_id=part_id,
             **update_data,
         )
+
+        if update_data:
+            new_values = {
+                field: getattr(
+                    part,
+                    field,
+                )
+                for field in update_data
+            }
+
+            audit_service.register(
+                user_id=current_user.id,
+                action="UPDATE",
+                module="PART",
+                entity_type="Part",
+                entity_id=part.id,
+                description="Peça atualizada.",
+                old_values=old_values,
+                new_values=new_values,
+            )
 
         session.commit()
 
@@ -309,7 +369,8 @@ def update_part(
 def activate_part(
     session: SessionDependency,
     service: PartServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     part_id: int = Path(
         ...,
         gt=0,
@@ -323,6 +384,21 @@ def activate_part(
     try:
         part = service.activate(
             part_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="ACTIVATE",
+            module="PART",
+            entity_type="Part",
+            entity_id=part.id,
+            description="Peça ativada.",
+            old_values={
+                "is_active": 0,
+            },
+            new_values={
+                "is_active": 1,
+            },
         )
 
         session.commit()
@@ -354,9 +430,14 @@ def activate_part(
     summary="Desativar peça",
 )
 def deactivate_part(
+    request: Annotated[
+        PartDeactivateRequest,
+        Body(...),
+    ],
     session: SessionDependency,
     service: PartServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    current_user: AdminOrBuyerUserDependency,
+    audit_service: AuditServiceDependency,
     part_id: int = Path(
         ...,
         gt=0,
@@ -370,6 +451,24 @@ def deactivate_part(
     try:
         part = service.deactivate(
             part_id
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="DEACTIVATE",
+            module="PART",
+            entity_type="Part",
+            entity_id=part.id,
+            description="Peça desativada.",
+            old_values={
+                "is_active": 1,
+            },
+            new_values={
+                "is_active": 0,
+            },
+            justification=(
+                request.justification
+            ),
         )
 
         session.commit()

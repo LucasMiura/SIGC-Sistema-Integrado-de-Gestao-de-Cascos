@@ -97,6 +97,27 @@ class PartUpdateRequest(BaseModel):
         ),
     )
 
+class PartDeactivateRequest(BaseModel):
+    """
+    Dados obrigatórios para desativar
+    uma peça.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    justification: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description=(
+            "Justificativa obrigatória "
+            "para a desativação"
+        ),
+    )
+
 
 class PartResponse(BaseModel):
     """Representação pública de uma peça."""

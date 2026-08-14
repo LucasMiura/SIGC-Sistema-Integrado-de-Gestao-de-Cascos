@@ -4,6 +4,9 @@ from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
 
 from src.api.routes.part_route import (
     get_part_service,
@@ -13,6 +16,9 @@ from src.main import app
 from src.services.part_service import PartService
 from src.api.dependencies.auth import (
     get_current_user,
+)
+from src.services.audit_service import (
+    AuditService,
 )
 from src.api.dependencies.authorization import (
     ROLE_BUYER,
@@ -42,11 +48,21 @@ def session_mock() -> Mock:
 
     return session
 
+@pytest.fixture
+def audit_service() -> Mock:
+    """
+    Cria um mock do serviço de auditoria.
+    """
+
+    return Mock(
+        spec=AuditService,
+    )
 
 @pytest.fixture
 def client(
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> Generator[TestClient, None, None]:
     """
     Cria o cliente HTTP simulando
@@ -68,6 +84,9 @@ def client(
     def override_part_service() -> Mock:
         return service_mock
 
+    def override_audit_service() -> Mock:
+        return audit_service
+
     def override_session() -> Generator[
         Mock,
         None,
@@ -87,6 +106,10 @@ def client(
     ] = override_part_service
 
     app.dependency_overrides[
+        get_audit_service
+    ] = override_audit_service
+
+    app.dependency_overrides[
         get_session
     ] = override_session
 
@@ -94,7 +117,10 @@ def client(
         get_current_user
     ] = override_get_current_user
 
-    with TestClient(app) as test_client:
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as test_client:
         yield test_client
 
     app.dependency_overrides.clear()
@@ -162,6 +188,7 @@ def test_should_create_part_with_status_201(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
     part = create_part()
 
@@ -194,6 +221,26 @@ def test_should_create_part_with_status_201(
             "de casco"
         ),
         return_deadline_days=90,
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="CREATE",
+        module="PART",
+        entity_type="Part",
+        entity_id=10,
+        description="Peça cadastrada.",
+        new_values={
+            "supplier_id": 1,
+            "part_code": "ABC123",
+            "name": "Compressor de ar",
+            "description": (
+                "Compressor com obrigação "
+                "de devolução de casco"
+            ),
+            "return_deadline_days": 90,
+            "is_active": 1,
+        },
     )
 
     session_mock.commit.assert_called_once_with()
@@ -665,12 +712,21 @@ def test_should_update_part_name(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
+    original_part = create_part()
+
     updated_part = create_part(
         name="Compressor de ar atualizado",
     )
 
-    service_mock.update.return_value = updated_part
+    service_mock.get_required.return_value = (
+        original_part
+    )
+
+    service_mock.update.return_value = (
+        updated_part
+    )
 
     response = client.put(
         "/parts/10",
@@ -685,15 +741,36 @@ def test_should_update_part_name(
         name="Compressor de ar atualizado",
     )
 
+    service_mock.get_required.assert_called_once_with(
+        10
+    )
+
     service_mock.update.assert_called_once_with(
         part_id=10,
         name="Compressor de ar atualizado",
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="UPDATE",
+        module="PART",
+        entity_type="Part",
+        entity_id=10,
+        description="Peça atualizada.",
+        old_values={
+            "name": "Compressor de ar",
+        },
+        new_values={
+            "name": "Compressor de ar atualizado",
+        },
+    )
+
     session_mock.commit.assert_called_once_with()
+
     session_mock.refresh.assert_called_once_with(
         updated_part
     )
+
     session_mock.rollback.assert_not_called()
 
 
@@ -897,6 +974,7 @@ def test_should_accept_empty_update_body(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
     part = create_part()
 
@@ -914,6 +992,10 @@ def test_should_accept_empty_update_body(
     service_mock.update.assert_called_once_with(
         part_id=10,
     )
+
+    service_mock.get_required.assert_not_called()
+
+    audit_service.register.assert_not_called()
 
     session_mock.commit.assert_called_once_with()
     session_mock.refresh.assert_called_once_with(part)
@@ -1185,6 +1267,7 @@ def test_should_activate_part(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
     part = create_part(
         is_active=1,
@@ -1204,6 +1287,21 @@ def test_should_activate_part(
 
     service_mock.activate.assert_called_once_with(
         10,
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="ACTIVATE",
+        module="PART",
+        entity_type="Part",
+        entity_id=10,
+        description="Peça ativada.",
+        old_values={
+            "is_active": 0,
+        },
+        new_values={
+            "is_active": 1,
+        },
     )
 
     session_mock.commit.assert_called_once_with()
@@ -1291,6 +1389,7 @@ def test_should_deactivate_part(
     client: TestClient,
     service_mock: Mock,
     session_mock: Mock,
+    audit_service: Mock,
 ) -> None:
     part = create_part(
         is_active=0,
@@ -1300,6 +1399,11 @@ def test_should_deactivate_part(
 
     response = client.patch(
         "/parts/10/deactivate",
+        json={
+            "justification": (
+                "Peça descontinuada pelo fornecedor."
+            ),
+        },
     )
 
     assert response.status_code == 200
@@ -1312,10 +1416,30 @@ def test_should_deactivate_part(
         10,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=2,
+        action="DEACTIVATE",
+        module="PART",
+        entity_type="Part",
+        entity_id=10,
+        description="Peça desativada.",
+        old_values={
+            "is_active": 1,
+        },
+        new_values={
+            "is_active": 0,
+        },
+        justification=(
+            "Peça descontinuada pelo fornecedor."
+        ),
+    )
+
     session_mock.commit.assert_called_once_with()
+
     session_mock.refresh.assert_called_once_with(
         part,
     )
+
     session_mock.rollback.assert_not_called()
 
 
@@ -1330,6 +1454,11 @@ def test_should_return_404_when_deactivate_unknown_part(
 
     response = client.patch(
         "/parts/999/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
     )
 
     assert response.status_code == 404
@@ -1358,6 +1487,11 @@ def test_should_return_400_when_part_is_already_inactive(
 
     response = client.patch(
         "/parts/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
     )
 
     assert response.status_code == 400
@@ -1382,6 +1516,11 @@ def test_should_return_422_when_deactivate_invalid_id(
 ) -> None:
     response = client.patch(
         "/parts/0/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
     )
 
     assert response.status_code == 422
@@ -1391,6 +1530,102 @@ def test_should_return_422_when_deactivate_invalid_id(
     session_mock.commit.assert_not_called()
     session_mock.rollback.assert_not_called()
     session_mock.refresh.assert_not_called()
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "justification": "",
+        },
+        {
+            "justification": "   ",
+        },
+    ],
+)
+def test_should_return_422_when_deactivate_justification_is_invalid(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+    payload: dict[str, object],
+) -> None:
+    response = client.patch(
+        "/parts/10/deactivate",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+    service_mock.deactivate.assert_not_called()
+
+    session_mock.commit.assert_not_called()
+    session_mock.rollback.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
+def test_should_return_422_when_deactivate_has_extra_field(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    response = client.patch(
+        "/parts/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+            "unexpected_field": "value",
+        },
+    )
+
+    assert response.status_code == 422
+
+    service_mock.deactivate.assert_not_called()
+
+    session_mock.commit.assert_not_called()
+    session_mock.rollback.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
+
+def test_should_rollback_when_audit_fails_on_deactivate(
+    client: TestClient,
+    service_mock: Mock,
+    session_mock: Mock,
+    audit_service: Mock,
+) -> None:
+    part = create_part(
+        is_active=0,
+    )
+
+    service_mock.deactivate.return_value = part
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.patch(
+        "/parts/10/deactivate",
+        json={
+            "justification": (
+                "Desativação de teste."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service_mock.deactivate.assert_called_once_with(
+        10
+    )
+
+    audit_service.register.assert_called_once()
+
+    session_mock.rollback.assert_called_once_with()
+
+    session_mock.commit.assert_not_called()
+    session_mock.refresh.assert_not_called()
+
 
 def test_should_return_401_without_authentication(
     service_mock: Mock,
