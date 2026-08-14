@@ -98,14 +98,27 @@ ALLOWED_SUFFIXES = {
 MAX_FILE_SIZE_BYTES = 500_000
 
 
-PREFERRED_DATABASE_NAMES = (
-    "sigc.db",
-    "database.db",
-    "app.db",
-    "sqlite.db",
-    "sigc.sqlite",
-    "database.sqlite",
-    "app.sqlite",
+PREFERRED_DATABASE_PATHS = (
+    PROJECT_ROOT
+    / "data"
+    / "sigc_dev.db",
+    PROJECT_ROOT
+    / "data"
+    / "sigc_prod.db",
+    PROJECT_ROOT
+    / "sigc.db",
+    PROJECT_ROOT
+    / "database.db",
+    PROJECT_ROOT
+    / "app.db",
+    PROJECT_ROOT
+    / "sqlite.db",
+    PROJECT_ROOT
+    / "sigc.sqlite",
+    PROJECT_ROOT
+    / "database.sqlite",
+    PROJECT_ROOT
+    / "app.sqlite",
 )
 
 
@@ -287,10 +300,11 @@ def find_sqlite_database() -> Path | None:
     caches ou diretórios ignorados.
     """
 
-    for database_name in PREFERRED_DATABASE_NAMES:
-        candidate = PROJECT_ROOT / database_name
-
-        if candidate.exists():
+    for candidate in PREFERRED_DATABASE_PATHS:
+        if (
+            candidate.exists()
+            and candidate.is_file()
+        ):
             return candidate
 
     candidates: list[Path] = []

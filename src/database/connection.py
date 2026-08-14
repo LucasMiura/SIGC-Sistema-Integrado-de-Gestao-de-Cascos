@@ -14,7 +14,14 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 DATABASE_DIR = BASE_DIR / "data"
 DATABASE_DIR.mkdir(exist_ok=True)
 
-DATABASE_URL = f"sqlite:///{DATABASE_DIR / 'sigc_dev.db'}"
+DATABASE_PATH = (
+    DATABASE_DIR
+    / "sigc_dev.db"
+)
+
+DATABASE_URL = (
+    f"sqlite:///{DATABASE_PATH}"
+)
 
 
 engine = create_engine(
