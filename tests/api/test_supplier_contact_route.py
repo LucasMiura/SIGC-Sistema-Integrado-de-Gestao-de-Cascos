@@ -322,7 +322,7 @@ def test_should_update_only_informed_contact_fields(
 
     service_mock.update.return_value = contact
 
-    response = client.put(
+    response = client.patch(
         "/suppliers/1/contacts/10",
         json={
             "phone": "(13) 98888-2222",
@@ -390,7 +390,7 @@ def test_should_send_none_to_clear_optional_fields(
 
     service_mock.update.return_value = contact
 
-    response = client.put(
+    response = client.patch(
         "/suppliers/1/contacts/10",
         json={
             "email": None,
@@ -808,7 +808,7 @@ def test_should_rollback_when_update_fails(
         "Contato não encontrado."
     )
 
-    response = client.put(
+    response = client.patch(
         "/suppliers/1/contacts/999",
         json={
             "phone": "(13) 99999-9999",
@@ -851,7 +851,7 @@ def test_should_rollback_when_audit_fails_on_update(
         )
     )
 
-    response = client.put(
+    response = client.patch(
         "/suppliers/1/contacts/10",
         json={
             "phone": "(13) 98888-2222",

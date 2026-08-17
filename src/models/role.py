@@ -13,9 +13,10 @@ class Role(Base):
         autoincrement=True,
     )
 
-    name: Mapped[str | None] = mapped_column(
+    name: Mapped[str] = mapped_column(
         String(100),
-        nullable=True,
+        nullable=False,
+        unique=True,
     )
 
     description: Mapped[str | None] = mapped_column(

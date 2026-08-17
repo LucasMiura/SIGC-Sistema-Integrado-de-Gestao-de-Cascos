@@ -262,7 +262,7 @@ def get_user(
         )
 
 
-@router.put(
+@router.patch(
     "/{user_id}",
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,

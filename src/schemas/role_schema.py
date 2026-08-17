@@ -55,6 +55,6 @@ class RoleResponse(BaseModel):
     )
 
     id: int
-    name: str | None
+    name: str
     description: str | None
     created_at: str

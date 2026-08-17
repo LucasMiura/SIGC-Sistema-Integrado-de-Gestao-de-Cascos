@@ -268,7 +268,7 @@ def get_part(
         )
 
 
-@router.put(
+@router.patch(
     "/{part_id}",
     response_model=PartResponse,
     status_code=status.HTTP_200_OK,

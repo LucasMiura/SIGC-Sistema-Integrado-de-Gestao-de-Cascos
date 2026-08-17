@@ -195,7 +195,7 @@ class UserResponse(BaseModel):
     username: str
     email: str
     role_id: int
-    is_active: int
+    is_active: bool
     last_login_at: str | None
     created_at: str
     updated_at: str

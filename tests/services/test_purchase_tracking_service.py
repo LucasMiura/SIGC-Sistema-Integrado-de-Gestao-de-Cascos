@@ -19,7 +19,7 @@ def create_tracking_dto() -> PurchaseTrackingDTO:
         invoice_number="12345",
         invoice_series="1",
         issue_date="2026-07-28",
-        purchase_status="ACTIVE",
+        purchase_status="RECEIVED",
         items=(),
     )
 

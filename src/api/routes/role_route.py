@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.authorization import (
     AdminUserDependency,
 )
+from src.api.dependencies.audit import (
+    AuditServiceDependency,
+)
 from src.database.connection import get_session
 from src.repositories.role_repository import (
     RoleRepository,
@@ -112,7 +115,8 @@ def create_role(
     ],
     session: SessionDependency,
     service: RoleServiceDependency,
-    _current_user: AdminUserDependency,
+    audit_service: AuditServiceDependency,
+    current_user: AdminUserDependency,
 ) -> RoleResponse:
     """
     Cadastra um novo perfil de acesso.
@@ -124,6 +128,23 @@ def create_role(
         role = service.create(
             name=request.name,
             description=request.description,
+        )
+
+        audit_service.register(
+            user_id=current_user.id,
+            action="CREATE",
+            module="ROLE",
+            entity_type="Role",
+            entity_id=role.id,
+            description=(
+                "Perfil de acesso cadastrado."
+            ),
+            new_values={
+                "name": role.name,
+                "description": (
+                    role.description
+                ),
+            },
         )
 
         session.commit()

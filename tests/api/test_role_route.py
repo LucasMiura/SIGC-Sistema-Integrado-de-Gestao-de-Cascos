@@ -20,6 +20,12 @@ from src.api.dependencies.auth import (
 from src.api.dependencies.authorization import (
     ROLE_ADMIN,
 )
+from src.api.dependencies.audit import (
+    get_audit_service,
+)
+from src.services.audit_service import (
+    AuditService,
+)
 
 
 @pytest.fixture
@@ -35,11 +41,17 @@ def service() -> Mock:
         spec=RoleService,
     )
 
+@pytest.fixture
+def audit_service() -> Mock:
+    return Mock(
+        spec=AuditService
+    )
 
 @pytest.fixture
 def app(
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> FastAPI:
     test_app = FastAPI()
 
@@ -61,6 +73,9 @@ def app(
     def override_get_role_service():
         return service
 
+    def override_get_audit_service():
+        return audit_service
+
     def override_get_current_user():
         return admin_user
 
@@ -75,6 +90,10 @@ def app(
     test_app.dependency_overrides[
         get_role_service
     ] = override_get_role_service
+
+    test_app.dependency_overrides[
+        get_audit_service
+    ] = override_get_audit_service
 
     test_app.dependency_overrides[
         get_current_user
@@ -99,7 +118,7 @@ def client(
 
 def create_role(
     role_id: int = 1,
-    name: str | None = "Administrador Master",
+    name: str = "Administrador Master",
     description: str | None = (
         "Perfil administrativo completo."
     ),
@@ -115,7 +134,7 @@ def create_role(
 
 def expected_role_response(
     role_id: int = 1,
-    name: str | None = "Administrador Master",
+    name: str = "Administrador Master",
     description: str | None = (
         "Perfil administrativo completo."
     ),
@@ -132,6 +151,7 @@ def test_should_create_role(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     role = create_role()
 
@@ -160,6 +180,23 @@ def test_should_create_role(
         ),
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="CREATE",
+        module="ROLE",
+        entity_type="Role",
+        entity_id=1,
+        description=(
+            "Perfil de acesso cadastrado."
+        ),
+        new_values={
+            "name": "Administrador Master",
+            "description": (
+                "Perfil administrativo completo."
+            ),
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
@@ -173,6 +210,7 @@ def test_should_create_role_without_description(
     client: TestClient,
     session: Mock,
     service: Mock,
+    audit_service: Mock,
 ) -> None:
     role = create_role(
         name="Comprador",
@@ -202,11 +240,68 @@ def test_should_create_role_without_description(
         description=None,
     )
 
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="CREATE",
+        module="ROLE",
+        entity_type="Role",
+        entity_id=1,
+        description=(
+            "Perfil de acesso cadastrado."
+        ),
+        new_values={
+            "name": "Comprador",
+            "description": None,
+        },
+    )
+
     session.commit.assert_called_once_with()
 
     session.refresh.assert_called_once_with(
         role
     )
+
+def test_should_rollback_when_audit_fails_on_create(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    role = create_role()
+
+    service.create.return_value = role
+
+    audit_service.register.side_effect = (
+        RuntimeError(
+            "Falha ao registrar auditoria."
+        )
+    )
+
+    response = client.post(
+        "/roles",
+        json={
+            "name": "Administrador Master",
+            "description": (
+                "Perfil administrativo completo."
+            ),
+        },
+    )
+
+    assert response.status_code == 500
+
+    service.create.assert_called_once_with(
+        name="Administrador Master",
+        description=(
+            "Perfil administrativo completo."
+        ),
+    )
+
+    audit_service.register.assert_called_once()
+
+    session.rollback.assert_called_once_with()
+
+    session.commit.assert_not_called()
+    session.refresh.assert_not_called()
 
 
 @pytest.mark.parametrize(

@@ -281,7 +281,7 @@ def get_supplier_contact(
         ) from error
 
 
-@router.put(
+@router.patch(
     "/{contact_id}",
     response_model=SupplierContactResponse,
     status_code=status.HTTP_200_OK,

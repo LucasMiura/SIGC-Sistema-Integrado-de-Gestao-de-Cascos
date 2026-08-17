@@ -1,10 +1,25 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
+
+from src.schemas.purchase_schema import (
+    PurchaseStatus,
+)
 
 from src.dtos.purchase_tracking import (
     PurchaseItemTrackingDTO,
     PurchaseTrackingDTO,
 )
 
+
+PurchaseItemLifecycleStatus = Literal[
+    "AVAILABLE_FOR_OUTBOUND",
+    "PENDING_CUSTOMER_RETURN",
+    "PARTIALLY_RETURNED_BY_CUSTOMER",
+    "AVAILABLE_FOR_SUPPLIER_RETURN",
+    "PARTIALLY_RETURNED_TO_SUPPLIER",
+    "COMPLETED",
+]
 
 class PurchaseItemTrackingResponse(BaseModel):
     """Representa um item no acompanhamento de uma compra."""
@@ -28,7 +43,7 @@ class PurchaseItemTrackingResponse(BaseModel):
     quantity_returned_to_supplier: int
     quantity_pending_supplier_return: int
 
-    lifecycle_status: str
+    lifecycle_status: PurchaseItemLifecycleStatus
 
     @classmethod
     def from_dto(
@@ -79,7 +94,7 @@ class PurchaseTrackingResponse(BaseModel):
     invoice_number: str
     invoice_series: str | None
     issue_date: str
-    purchase_status: str
+    purchase_status: PurchaseStatus
 
     items: tuple[PurchaseItemTrackingResponse, ...]
 

@@ -728,7 +728,7 @@ def test_should_update_part_name(
         updated_part
     )
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "name": "Compressor de ar atualizado",
@@ -785,7 +785,7 @@ def test_should_update_part_supplier(
 
     service_mock.update.return_value = updated_part
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "supplier_id": 2,
@@ -821,7 +821,7 @@ def test_should_update_part_code(
 
     service_mock.update.return_value = updated_part
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "part_code": "XYZ789",
@@ -857,7 +857,7 @@ def test_should_update_return_deadline_days(
 
     service_mock.update.return_value = updated_part
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "return_deadline_days": 120,
@@ -897,7 +897,7 @@ def test_should_update_multiple_part_fields(
 
     service_mock.update.return_value = updated_part
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "supplier_id": 2,
@@ -945,7 +945,7 @@ def test_should_clear_part_description(
 
     service_mock.update.return_value = updated_part
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "description": None,
@@ -980,7 +980,7 @@ def test_should_accept_empty_update_body(
 
     service_mock.update.return_value = part
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={},
     )
@@ -1011,7 +1011,7 @@ def test_should_return_404_when_part_is_not_found_on_update(
         "Peça não encontrada."
     )
 
-    response = client.put(
+    response = client.patch(
         "/parts/999",
         json={
             "name": "Novo nome",
@@ -1043,7 +1043,7 @@ def test_should_return_404_when_supplier_is_not_found_on_update(
         "Fornecedor não encontrado."
     )
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "supplier_id": 999,
@@ -1075,7 +1075,7 @@ def test_should_return_400_when_new_supplier_is_inactive(
         "O fornecedor informado está inativo."
     )
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "supplier_id": 2,
@@ -1112,7 +1112,7 @@ def test_should_return_409_when_updated_combination_already_exists(
         error_message
     )
 
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "supplier_id": 2,
@@ -1142,7 +1142,7 @@ def test_should_return_422_for_non_positive_part_id_on_update(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/parts/0",
         json={
             "name": "Novo nome",
@@ -1163,7 +1163,7 @@ def test_should_return_422_for_invalid_supplier_id_on_update(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "supplier_id": 0,
@@ -1184,7 +1184,7 @@ def test_should_return_422_for_invalid_deadline_on_update(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "return_deadline_days": 0,
@@ -1205,7 +1205,7 @@ def test_should_return_422_for_deadline_above_maximum_on_update(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "return_deadline_days": 3651,
@@ -1226,7 +1226,7 @@ def test_should_return_422_for_empty_part_code_on_update(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "part_code": "",
@@ -1247,7 +1247,7 @@ def test_should_reject_extra_update_request_fields(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/parts/10",
         json={
             "name": "Motor de partida",

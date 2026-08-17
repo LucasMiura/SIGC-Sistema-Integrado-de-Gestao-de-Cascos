@@ -160,7 +160,7 @@ def expected_user_response(
     username: str = "lucas.miura",
     email: str = "lucas@example.com",
     role_id: int = 1,
-    is_active: int = 1,
+    is_active: bool = True,
     last_login_at: str | None = None,
 ) -> dict:
     return {
@@ -198,6 +198,10 @@ def test_should_create_user(
     )
 
     assert response.status_code == 201
+    assert (
+        response.json()["is_active"]
+        is True
+    )
 
     assert response.json() == (
         expected_user_response()
@@ -630,7 +634,7 @@ def test_should_list_users(
             username="maria.silva",
             email="maria@example.com",
             role_id=2,
-            is_active=0,
+            is_active=False,
             last_login_at="2026-08-05T18:00:00",
         ),
     ]
@@ -742,7 +746,7 @@ def test_should_update_user(
 
     service.update.return_value = user
 
-    response = client.put(
+    response = client.patch(
         "/users/10",
         json={
             "full_name": "Lucas Atualizado",
@@ -821,7 +825,7 @@ def test_should_update_only_provided_user_field(
 
     service.update.return_value = user
 
-    response = client.put(
+    response = client.patch(
         "/users/10",
         json={
             "full_name": "Novo Nome",
@@ -867,7 +871,7 @@ def test_should_allow_empty_update_payload(
 
     service.update.return_value = user
 
-    response = client.put(
+    response = client.patch(
         "/users/10",
         json={},
     )
@@ -934,7 +938,7 @@ def test_should_return_422_when_update_payload_is_invalid(
     payload: dict,
     expected_status: int,
 ) -> None:
-    response = client.put(
+    response = client.patch(
         "/users/10",
         json=payload,
     )
@@ -993,7 +997,7 @@ def test_should_convert_business_error_on_update(
         ValueError(message)
     )
 
-    response = client.put(
+    response = client.patch(
         "/users/10",
         json={
             "full_name": "Novo Nome",
@@ -1023,7 +1027,7 @@ def test_should_rollback_when_unexpected_error_occurs_on_update(
         )
     )
 
-    response = client.put(
+    response = client.patch(
         "/users/10",
         json={
             "full_name": "Novo Nome",
@@ -1058,7 +1062,7 @@ def test_should_activate_user(
 
     assert response.json() == (
         expected_user_response(
-            is_active=1,
+            is_active=True,
         )
     )
 
@@ -1113,7 +1117,7 @@ def test_should_deactivate_user(
 
     assert response.json() == (
         expected_user_response(
-            is_active=0,
+            is_active=False,
         )
     )
 

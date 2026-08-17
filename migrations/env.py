@@ -21,6 +21,9 @@ from src.models.outbound_item import OutboundItem
 from src.models.outbound_purchase_allocation import (
     OutboundPurchaseAllocation,
 )
+from src.models.outbound_transfer_allocation import (
+    OutboundTransferAllocation,
+)
 from src.models.customer_return import CustomerReturn
 from src.models.customer_return_allocation import (
     CustomerReturnAllocation,
@@ -28,6 +31,12 @@ from src.models.customer_return_allocation import (
 from src.models.customer_return_item import CustomerReturnItem
 from src.models.transfer import Transfer
 from src.models.transfer_item import TransferItem
+from src.models.transfer_return import (
+    TransferReturn,
+)
+from src.models.transfer_return_item import (
+    TransferReturnItem,
+)
 from src.models.core_movement import CoreMovement
 from src.models.audit_log import AuditLog
 
@@ -55,16 +64,70 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
-    """Executa as migrações utilizando uma conexão existente."""
+def do_run_migrations(
+    connection: Connection,
+) -> None:
+    """
+    Executa as migrations utilizando uma
+    conexão existente.
 
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
+    No SQLite, a validação de chaves
+    estrangeiras é suspensa temporariamente
+    sem iniciar uma transação SQLAlchemy.
+    """
+
+    is_sqlite = (
+        connection.dialect.name
+        == "sqlite"
     )
 
-    with context.begin_transaction():
-        context.run_migrations()
+    dbapi_connection = None
+
+    if is_sqlite:
+        dbapi_connection = (
+            connection
+            .connection
+            .driver_connection
+        )
+
+        cursor = (
+            dbapi_connection.cursor()
+        )
+
+        try:
+            cursor.execute(
+                "PRAGMA foreign_keys = OFF"
+            )
+
+        finally:
+            cursor.close()
+
+    try:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+    finally:
+        if (
+            is_sqlite
+            and dbapi_connection
+            is not None
+        ):
+            cursor = (
+                dbapi_connection.cursor()
+            )
+
+            try:
+                cursor.execute(
+                    "PRAGMA foreign_keys = ON"
+                )
+
+            finally:
+                cursor.close()
 
 
 def run_migrations_online() -> None:

@@ -161,7 +161,7 @@ def expected_supplier_json(
     document: str | None = "12.345.678/0001-90",
     address: str | None = "Registro/SP",
     notes: str | None = "Fornecedor de teste",
-    is_active: int = 1,
+    is_active: bool = True,
 ) -> dict[str, object]:
     """
     Retorna o JSON esperado nas respostas.
@@ -200,6 +200,10 @@ def test_should_create_supplier_with_status_201(
     )
 
     assert response.status_code == 201
+    assert (
+        response.json()["is_active"]
+        is True
+    )
     assert response.json() == expected_supplier_json()
 
     service_mock.create.assert_called_once_with(
@@ -262,7 +266,7 @@ def test_should_list_suppliers(
             document=None,
             address=None,
             notes=None,
-            is_active=0,
+            is_active=False,
         ),
     ]
 
@@ -323,7 +327,7 @@ def test_should_update_only_informed_fields(
 
     service_mock.update.return_value = supplier
 
-    response = client.put(
+    response = client.patch(
         "/suppliers/1",
         json={
             "address": "Novo endereço",
@@ -400,7 +404,7 @@ def test_should_rollback_when_audit_fails_on_update(
         )
     )
 
-    response = client.put(
+    response = client.patch(
         "/suppliers/1",
         json={
             "address": "Novo endereço",
@@ -482,7 +486,7 @@ def test_should_deactivate_supplier(
     assert response.status_code == 200
 
     assert response.json() == expected_supplier_json(
-        is_active=0,
+        is_active=False,
     )
 
     service_mock.deactivate.assert_called_once_with(
@@ -535,7 +539,7 @@ def test_should_activate_supplier(
     assert response.status_code == 200
 
     assert response.json() == expected_supplier_json(
-        is_active=1,
+        is_active=True,
     )
 
     service_mock.activate.assert_called_once_with(1)

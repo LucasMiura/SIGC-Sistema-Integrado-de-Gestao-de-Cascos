@@ -233,7 +233,7 @@ def get_supplier(
         )
 
 
-@router.put(
+@router.patch(
     "/{supplier_id}",
     response_model=SupplierResponse,
     status_code=status.HTTP_200_OK,

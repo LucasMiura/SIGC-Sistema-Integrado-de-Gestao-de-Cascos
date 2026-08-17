@@ -108,7 +108,7 @@ class SupplierResponse(BaseModel):
     address: str | None
     notes: str | None
 
-    is_active: int
+    is_active: bool
 
     created_at: str
     updated_at: str

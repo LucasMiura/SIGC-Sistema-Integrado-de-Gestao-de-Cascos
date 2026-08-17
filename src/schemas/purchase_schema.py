@@ -184,7 +184,7 @@ class PurchaseResponse(BaseModel):
     created_at: str
     updated_at: str
 
-    status: str
+    status: PurchaseStatus
 
 
 class PurchaseItemResponse(BaseModel):
