@@ -11,8 +11,8 @@
 | Nome do sistema         | SIGC                                  |
 | Nome completo           | Sistema Integrado de Gestão de Cascos |
 | Autor                   | Lucas do Nascimento Miura             |
-| Status                  | Em fase de implementação              |
-| Versão da especificação | 1.1.0                                 |
+| Status                  | Backend congelado / Frontend em implementação |
+| Versão da especificação | 1.2.0                                 |
 | Data de criação         | 23/07/2026                            |
 | Plataforma inicial      | Aplicação Web Interna                 |
 | Linguagem principal     | Python                                |
@@ -3781,17 +3781,37 @@ Informações sensíveis não deverão ser armazenadas diretamente no código-fo
 
 ## 12.19 Distribuição da Aplicação Cliente
 
-A aplicação cliente deverá ser preparada para ser distribuída como um programa executável no ambiente Windows.
+A aplicação cliente do SIGC será uma aplicação web executada no navegador dos computadores autorizados da empresa.
+
+A interface será construída separadamente da API e será responsável apenas pela camada de apresentação e interação com o usuário.
+
+Na implantação inicial, os arquivos do frontend serão disponibilizados de forma centralizada no ambiente da empresa, evitando a necessidade de instalação individual da aplicação completa em cada computador.
 
 A distribuição deverá considerar:
 
-* Arquivos necessários para execução;
-* Dependências;
-* Configurações;
-* Comunicação com a API;
-* Atualizações futuras.
+* Build de produção do frontend;
+* Configuração do endereço da API;
+* Disponibilização dos arquivos estáticos;
+* Compatibilidade com os navegadores utilizados pela empresa;
+* Atualizações futuras;
+* Controle de origem das requisições por CORS.
 
-A aplicação cliente deverá ser instalada ou disponibilizada nos computadores autorizados da empresa.
+Os computadores dos usuários não deverão possuir acesso direto ao banco de dados SQLite.
+
+O fluxo será:
+
+```text
+Usuário
+   ↓
+Navegador
+   ↓
+Frontend SIGC
+   ↓
+API FastAPI
+   ↓
+Regras de negócio
+   ↓
+SQLite
 
 ---
 
@@ -7271,6 +7291,103 @@ Preservar a governança do projeto e evitar mudanças acidentais de regras de ne
 
 ---
 
+## DT-034 — Framework da API
+
+### Decisão
+
+O backend do SIGC utilizará FastAPI.
+
+A API será responsável por autenticação, autorização, validação, execução das regras de negócio, persistência, auditoria, consultas e disponibilização dos contratos HTTP utilizados pelo frontend.
+
+### Motivo
+
+O FastAPI permite estruturar a aplicação de forma modular, utilizar tipagem e schemas de validação, separar responsabilidades e gerar documentação OpenAPI automaticamente.
+
+---
+
+## DT-035 — Tecnologia do frontend
+
+### Decisão
+
+A interface web do SIGC será desenvolvida utilizando React, TypeScript e Vite.
+
+O frontend será mantido desacoplado do backend FastAPI.
+
+### Motivo
+
+Essa combinação permite:
+
+* Construção da interface por componentes reutilizáveis;
+* Tipagem dos contratos consumidos da API;
+* Organização modular;
+* Desenvolvimento de uma Single Page Application;
+* Criação de um Design System próprio;
+* Build independente para produção;
+* Evolução futura da interface sem alteração das regras centrais do backend.
+
+---
+
+## DT-036 — Navegação do frontend
+
+### Decisão
+
+O frontend utilizará React Router para o controle da navegação da aplicação.
+
+Inicialmente será utilizado o modelo declarativo de rotas.
+
+As rotas da aplicação deverão permitir:
+
+* Proteção de páginas autenticadas;
+* Redirecionamento para login;
+* Controle de acesso conforme o perfil do usuário;
+* Layout compartilhado entre os módulos;
+* Navegação sem recarregamento completo da aplicação.
+
+### Motivo
+
+Centralizar a navegação e permitir que os módulos do SIGC utilizem uma estrutura consistente de rotas.
+
+---
+
+## DT-037 — Comunicação entre frontend e API
+
+### Decisão
+
+A comunicação inicial entre frontend e backend utilizará a Fetch API disponível no navegador.
+
+A URL base da API deverá ser configurável por variável de ambiente do frontend.
+
+A aplicação cliente não deverá possuir endereços de produção fixados diretamente nos componentes.
+
+A variável inicialmente utilizada será:
+
+VITE_API_BASE_URL
+
+### Motivo
+
+Evitar dependências adicionais sem necessidade e manter a configuração da API separada do código da interface.
+
+---
+
+## DT-038 — Congelamento funcional do backend
+
+### Decisão
+
+O backend principal do SIGC será considerado funcionalmente congelado para o início do desenvolvimento do frontend.
+
+Alterações futuras no backend deverão ocorrer quando:
+
+* For identificado um erro;
+* A integração com o frontend revelar uma necessidade concreta;
+* Uma regra de negócio for formalmente alterada;
+* Uma nova funcionalidade for aprovada e documentada.
+
+### Motivo
+
+Evitar alterações desnecessárias nos contratos HTTP durante o desenvolvimento da interface e preservar uma base estável para integração.
+
+---
+
 ## 19.1 Resumo das decisões
 
 A arquitetura inicial do SIGC será:
@@ -7346,24 +7463,19 @@ Quando uma decisão for tomada, ela deverá:
 
 ### Status
 
-Pendente.
+Resolvido.
 
-### Descrição
+### Decisão
 
-O framework web definitivo ainda deverá ser escolhido.
+O backend web do SIGC utiliza FastAPI.
 
-A decisão deverá considerar:
+A decisão está registrada em:
 
-* Facilidade de desenvolvimento;
-* Organização do projeto;
-* Suporte ao Python;
-* Manutenção;
-* Segurança;
-* Possibilidade de evolução.
+DT-034 — Framework da API.
 
-### Momento recomendado
+### Data da resolução
 
-Antes do início da implementação da aplicação web.
+17/08/2026.
 
 ---
 
@@ -7371,7 +7483,7 @@ Antes do início da implementação da aplicação web.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7394,7 +7506,7 @@ Antes da implantação no servidor da empresa.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7422,7 +7534,7 @@ Durante a implantação em produção.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7443,7 +7555,7 @@ Somente quando o acesso remoto for efetivamente planejado.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7464,7 +7576,7 @@ Quando houver necessidade técnica ou operacional.
 
 ### Status
 
-Pendente de detalhamento.
+Resolvido.
 
 ### Descrição
 
@@ -7487,7 +7599,7 @@ Antes da entrada em produção.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7511,7 +7623,7 @@ Durante a definição da estratégia de backup.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7534,7 +7646,7 @@ Antes da finalização da interface principal.
 
 ### Status
 
-Pendente.
+Resolvido.
 
 ### Descrição
 
@@ -7554,23 +7666,28 @@ Durante a criação do Design System.
 
 ### Status
 
-Pendente.
+Resolvido.
 
-### Descrição
+### Decisão
 
-Deverá ser definido o conjunto de tecnologias utilizado para a construção da interface.
+O frontend do SIGC utilizará:
 
-A escolha deverá considerar:
+* React;
+* TypeScript;
+* Vite;
+* React Router.
 
-* Integração com o backend;
-* Facilidade de manutenção;
-* Reutilização de componentes;
-* Necessidade de JavaScript;
-* Complexidade do projeto.
+A comunicação HTTP inicial utilizará a Fetch API disponível no navegador.
 
-### Momento recomendado
+As decisões estão registradas em:
 
-Antes da implementação da primeira tela.
+* DT-035 — Tecnologia do frontend;
+* DT-036 — Navegação do frontend;
+* DT-037 — Comunicação entre frontend e API.
+
+### Data da resolução
+
+17/08/2026.
 
 ---
 
@@ -7921,7 +8038,19 @@ As seguintes decisões não deverão mais ser tratadas como pendentes:
 * Um único perfil de vendedor para oficina e balcão;
 * Perfil de comprador com permissões diferentes;
 * Administrador Master;
-* Envio de e-mail não faz parte da implementação inicial.
+* Envio de e-mail não faz parte da implementação inicial;
+* FastAPI como framework da API;
+* React como biblioteca da interface;
+* TypeScript como linguagem do frontend;
+* Vite como ferramenta de desenvolvimento e build do frontend;
+* React Router para navegação da interface;
+* Fetch API como mecanismo HTTP inicial do frontend;
+* JWT para autenticação;
+* CORS configurável por ambiente;
+* Alembic para evolução do banco de dados;
+* Backup e restauração controlados;
+* Testes automatizados do backend;
+* Backend funcionalmente congelado antes do início do frontend.
 
 ---
 
@@ -7940,6 +8069,46 @@ Nenhuma decisão pendente deverá ser implementada de forma definitiva sem avali
 ---
 
 # 21. HISTÓRICO DE ALTERAÇÕES
+
+## Versão 1.2.0 — 17/08/2026
+
+### Backend
+
+* Concluída a implementação dos principais módulos operacionais do SIGC;
+* Implementada autenticação JWT;
+* Implementada autorização por perfis;
+* Implementada auditoria das operações relevantes;
+* Implementados cancelamentos auditados com reversão lógica;
+* Revisados os cadastros de usuários, perfis, peças, fornecedores e contatos;
+* Implementada consulta consolidada de compras por Nota Fiscal;
+* Implementado Dashboard operacional;
+* Implementado sistema de backup e restauração controlada;
+* Ativada a verificação de chaves estrangeiras do SQLite;
+* Revisadas e sincronizadas as migrations Alembic;
+* Implementado bootstrap do primeiro Administrador Master;
+* Padronizados e revisados os contratos HTTP da API;
+* Configurado CORS por ambiente;
+* Atualizada a documentação operacional do projeto;
+* Backend declarado funcionalmente congelado para início do frontend.
+
+### Frontend
+
+* Definido React como biblioteca da interface;
+* Definido TypeScript como linguagem do frontend;
+* Definido Vite como ferramenta de desenvolvimento e build;
+* Definido React Router para navegação;
+* Definida Fetch API como mecanismo HTTP inicial;
+* Mantidas identidade visual definitiva e definição de tema como decisões pendentes.
+
+### Arquitetura
+
+* Consolidado o navegador como cliente inicial do SIGC;
+* Mantida a separação entre frontend e backend;
+* Mantida a API FastAPI como responsável pelas regras centrais de negócio;
+* Mantido o frontend principalmente como camada de apresentação;
+* Formalizado o congelamento funcional do backend antes do início do frontend.
+
+---
 
 ### Revisão técnica da versão 1.1.0
 
