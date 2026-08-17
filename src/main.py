@@ -1,5 +1,13 @@
 from fastapi import FastAPI
 
+from fastapi.middleware.cors import (
+    CORSMiddleware,
+)
+
+from src.core.config import (
+    get_cors_origins,
+)
+
 from src.api.routes import (
     audit_router,
     customer_return_router,
@@ -25,6 +33,18 @@ app = FastAPI(
         "Sistema Integrado de Gestão de Cascos"
     ),
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=[
+        "*",
+    ],
+    allow_headers=[
+        "*",
+    ],
 )
 
 app.include_router(
