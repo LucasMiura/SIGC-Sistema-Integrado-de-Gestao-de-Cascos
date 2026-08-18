@@ -1,4 +1,10 @@
 import {
+  AlertCircle,
+  ArrowRight,
+  LockKeyhole,
+  UserRound,
+} from 'lucide-react'
+import {
   useState,
   type FormEvent,
 } from 'react'
@@ -7,10 +13,18 @@ import {
   useNavigate,
 } from 'react-router'
 
+import sigcLogo from '../assets/brand/sigc-logo-primary.png'
+import loginIllustration from '../assets/illustrations/sigc-login-illustration.png'
+import {
+  Button,
+} from '../components/ui/Button'
+import {
+  TextField,
+} from '../components/ui/TextField'
+import { useAuth } from '../hooks/useAuth'
 import {
   ApiError,
 } from '../services/httpClient'
-import { useAuth } from '../hooks/useAuth'
 
 interface LoginLocationState {
   from?: string
@@ -81,19 +95,16 @@ export function LoginPage() {
           replace: true,
         },
       )
-
     } catch (error) {
       if (error instanceof ApiError) {
         setErrorMessage(
           error.message,
         )
-
       } else {
         setErrorMessage(
           'Não foi possível conectar ao SIGC.',
         )
       }
-
     } finally {
       setIsSubmitting(false)
     }
@@ -101,103 +112,201 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
-      <section className="login-panel">
-        <header>
-          <p className="login-system-name">
-            SIGC
-          </p>
+      <section
+        className="login-visual"
+        aria-label="Sistema Integrado de Gestão de Cascos"
+      >
+        <div className="login-visual__background">
+          <img
+            src={loginIllustration}
+            alt=""
+            className="login-visual__illustration"
+            aria-hidden="true"
+          />
 
-          <h1>
-            Acessar sistema
-          </h1>
+          <div className="login-visual__overlay" />
+        </div>
 
-          <p>
-            Utilize seu username ou
-            e-mail e sua senha.
-          </p>
-        </header>
+        <div className="login-visual__content">
+          <img
+            src={sigcLogo}
+            alt="SIGC — Sistema Integrado de Gestão de Cascos"
+            className="login-visual__logo"
+          />
 
-        <form
-          className="login-form"
-          onSubmit={
-            handleSubmit
-          }
-        >
-          <label>
-            <span>
-              Username ou e-mail
+          <div className="login-visual__message">
+            <span className="login-visual__eyebrow">
+              Controle e rastreabilidade
             </span>
 
-            <input
-              type="text"
-              name="login"
-              autoComplete="username"
-              value={loginValue}
-              onChange={
-                (event) => {
+            <h1>
+              Cada casco.
+              <br />
+              Cada movimento.
+              <br />
+              Sob controle.
+            </h1>
+
+            <p>
+              Informação operacional organizada
+              para acompanhar o ciclo completo
+              das peças com segurança e
+              precisão.
+            </p>
+          </div>
+
+          <div className="login-visual__footer">
+            <span>
+              SIGC
+            </span>
+
+            <span
+              className="login-visual__footer-divider"
+              aria-hidden="true"
+            />
+
+            <span>
+              Sistema interno
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="login-access">
+        <div className="login-access__inner">
+          <header className="login-access__header">
+            <span className="login-access__eyebrow">
+              Bem-vindo
+            </span>
+
+            <h2>
+              Acesse sua conta
+            </h2>
+
+            <p>
+              Entre com suas credenciais para
+              acessar o ambiente operacional.
+            </p>
+          </header>
+
+          <form
+            className="login-form"
+            onSubmit={handleSubmit}
+          >
+            <div className="login-field-wrapper">
+              <UserRound
+                className="login-field-icon"
+                size={18}
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+
+              <TextField
+                label="Username ou e-mail"
+                type="text"
+                name="login"
+                autoComplete="username"
+                value={loginValue}
+                onChange={(event) => {
                   setLoginValue(
                     event.target.value,
                   )
-                }
-              }
-              disabled={
-                isSubmitting
-              }
-              required
-              autoFocus
-            />
-          </label>
 
-          <label>
-            <span>
-              Senha
-            </span>
+                  if (errorMessage) {
+                    setErrorMessage(null)
+                  }
+                }}
+                disabled={isSubmitting}
+                required
+                autoFocus
+              />
+            </div>
 
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={
-                (event) => {
+            <div className="login-field-wrapper">
+              <LockKeyhole
+                className="login-field-icon"
+                size={18}
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+
+              <TextField
+                label="Senha"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => {
                   setPassword(
                     event.target.value,
                   )
-                }
-              }
-              disabled={
-                isSubmitting
-              }
-              required
-            />
-          </label>
 
-          {errorMessage && (
-            <p
-              className="login-error"
-              role="alert"
+                  if (errorMessage) {
+                    setErrorMessage(null)
+                  }
+                }}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+
+            {errorMessage && (
+              <div
+                className="login-error"
+                role="alert"
+              >
+                <AlertCircle
+                  size={18}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+
+                <span>
+                  {errorMessage}
+                </span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              size="lg"
+              fullWidth
+              disabled={isSubmitting}
+              className="login-submit"
             >
-              {errorMessage}
+              <span>
+                {isSubmitting
+                  ? 'Entrando...'
+                  : 'Entrar no SIGC'}
+              </span>
+
+              {!isSubmitting && (
+                <ArrowRight
+                  size={18}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+              )}
+            </Button>
+          </form>
+
+          <footer className="login-access__footer">
+            <div
+              className="login-access__security"
+              aria-hidden="true"
+            >
+              <LockKeyhole
+                size={14}
+                strokeWidth={1.8}
+              />
+            </div>
+
+            <p>
+              Acesso restrito a usuários
+              autorizados.
             </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={
-              isSubmitting
-            }
-          >
-            {isSubmitting
-              ? 'Entrando...'
-              : 'Entrar'}
-          </button>
-        </form>
-
-        <p className="temporary-notice">
-          Interface provisória.
-          O Design System ainda será
-          definido.
-        </p>
+          </footer>
+        </div>
       </section>
     </main>
   )

@@ -7388,6 +7388,72 @@ Evitar alterações desnecessárias nos contratos HTTP durante o desenvolvimento
 
 ---
 
+## DT-039 — Identidade visual e Design System
+
+### Decisão
+
+O SIGC possuirá identidade visual própria, com foco em uma experiência moderna, profissional, técnica e operacional.
+
+A interface não deverá reproduzir a aparência visual de sistemas ERP tradicionais ou dashboards administrativos genéricos.
+
+A direção visual será baseada em:
+
+* Azul-petróleo profundo como cor institucional principal;
+* Grafite para áreas estruturais e navegação;
+* Superfícies claras para áreas de trabalho;
+* Azul mineral como cor de interação e destaque;
+* Uso controlado de sombras e profundidade;
+* Bordas suaves;
+* Espaçamento amplo e consistente;
+* Tipografia Manrope;
+* Ícones lineares;
+* Ilustrações e elementos gráficos próprios do SIGC;
+* Uso prioritário da informação operacional em relação à decoração.
+
+As cores de atenção, urgência e atraso deverão permanecer semanticamente distintas da identidade institucional.
+
+O Design System deverá priorizar:
+
+* Clareza;
+* Hierarquia visual;
+* Consistência;
+* Acessibilidade;
+* Redução de carga cognitiva;
+* Boa legibilidade;
+* Feedback imediato das ações;
+* Reutilização de componentes.
+
+### Motivo
+
+Criar uma interface reconhecível, moderna e agradável sem comprometer a eficiência operacional do sistema.
+
+---
+
+## DT-040 — Estratégia de ícones e recursos visuais
+
+### Decisão
+
+O SIGC utilizará dois grupos distintos de recursos gráficos.
+
+Ícones funcionais da interface utilizarão a biblioteca Lucide.
+
+Elementos de identidade e comunicação visual serão produzidos especificamente para o SIGC, incluindo:
+
+* Logotipo;
+* Símbolo da marca;
+* Favicon;
+* Ilustração da tela de login;
+* Ilustrações de estados vazios quando necessário;
+* Elementos gráficos auxiliares quando contribuírem para a compreensão da interface.
+
+Ilustrações não deverão ser adicionadas apenas como decoração.
+
+### Motivo
+
+Manter consistência e legibilidade nos controles funcionais ao mesmo tempo em que o sistema desenvolve uma identidade visual própria e não genérica.
+
+---
+
 ## 19.1 Resumo das decisões
 
 A arquitetura inicial do SIGC será:
@@ -7625,20 +7691,26 @@ Durante a definição da estratégia de backup.
 
 Resolvido.
 
-### Descrição
+### Decisão
 
-Ainda deverão ser definidos:
+O SIGC utilizará uma identidade visual industrial contemporânea, tecnológica, limpa e profissional.
 
-* Logo;
-* Cor principal;
-* Paleta de cores;
-* Tipografia;
-* Ícones;
-* Tema visual definitivo.
+A identidade será construída principalmente com azul-petróleo, grafite, superfícies claras e azul mineral para interações.
 
-### Momento recomendado
+A tipografia principal será Manrope.
 
-Antes da finalização da interface principal.
+Ícones funcionais utilizarão Lucide.
+
+Logotipo, símbolo, favicon e ilustrações principais serão produzidos especificamente para o SIGC.
+
+A decisão está registrada em:
+
+* DT-039 — Identidade visual e Design System;
+* DT-040 — Estratégia de ícones e recursos visuais.
+
+### Data da resolução
+
+18/08/2026.
 
 ---
 
@@ -7648,17 +7720,19 @@ Antes da finalização da interface principal.
 
 Resolvido.
 
-### Descrição
+### Decisão
 
-Deverá ser definido se o sistema utilizará:
+A primeira versão do SIGC utilizará tema claro.
 
-* Tema claro;
-* Tema escuro;
-* Alternância entre temas.
+A estrutura principal poderá utilizar superfícies escuras, especialmente na navegação lateral, sem caracterizar um tema escuro completo.
 
-### Momento recomendado
+A arquitetura visual deverá utilizar tokens de cores para permitir a criação futura de um tema escuro sem reescrever os componentes.
 
-Durante a criação do Design System.
+A alternância de tema não fará parte da primeira versão.
+
+### Data da resolução
+
+18/08/2026.
 
 ---
 

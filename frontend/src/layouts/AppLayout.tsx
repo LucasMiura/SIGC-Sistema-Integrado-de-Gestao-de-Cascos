@@ -1,43 +1,52 @@
 import {
+  useState,
+} from 'react'
+import {
   Outlet,
 } from 'react-router'
 
-import { useAuth } from '../hooks/useAuth'
+import {
+  Sidebar,
+} from '../components/layout/Sidebar'
+import {
+  Topbar,
+} from '../components/layout/Topbar'
 
 export function AppLayout() {
-  const {
-    session,
-    logout,
-  } = useAuth()
+  const [
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  ] = useState(false)
 
   return (
-    <div className="app-shell">
-      <header className="temporary-header">
-        <div>
-          <strong>
-            SIGC
-          </strong>
+    <div
+      className={[
+        'app-shell',
+        sidebarCollapsed
+          ? 'app-shell--sidebar-collapsed'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => {
+          setSidebarCollapsed(
+            (current) => !current,
+          )
+        }}
+      />
 
-          {session && (
-            <span className="session-summary">
-              {session.user.full_name}
-              {' — '}
-              {session.role_name}
-            </span>
-          )}
-        </div>
+      <div className="app-shell__workspace">
+        <Topbar />
 
-        <button
-          type="button"
-          onClick={logout}
-        >
-          Sair
-        </button>
-      </header>
-
-      <main className="app-content">
-        <Outlet />
-      </main>
+        <main className="app-main">
+          <div className="app-main__container">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

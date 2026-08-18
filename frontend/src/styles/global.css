@@ -1,32 +1,50 @@
-:root {
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+@import "@fontsource-variable/manrope/wght.css";
+@import "./tokens.css";
+@import "./components.css";
+@import "./layout.css";
+@import "./pages.css";
 
-  color: #1f2937;
-  background: #f8fafc;
+:root {
+  font-family: var(--font-family-base);
+
+  color: var(--color-text-primary);
+  background: var(--color-page);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 html {
   min-width: 320px;
   min-height: 100%;
+
+  background: var(--color-page);
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+
+  color: var(--color-text-primary);
+  background: var(--color-page);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-family-base);
 }
 
 button,
@@ -36,149 +54,49 @@ textarea {
   font: inherit;
 }
 
-a {
+button,
+a,
+input,
+select,
+textarea {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+button {
   color: inherit;
 }
 
-.app-shell {
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  display: block;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin-top: 0;
+}
+
+::selection {
+  color: var(--color-white);
+  background: var(--color-brand-600);
+}
+
+#root {
   min-height: 100vh;
-}
-
-.temporary-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-
-  padding: 16px 24px;
-
-  border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
-}
-
-.temporary-navigation {
-  display: flex;
-  gap: 16px;
-}
-
-.app-content {
-  width: min(100% - 32px, 1200px);
-  margin-inline: auto;
-  padding-block: 48px;
-}
-
-.technical-info {
-  display: grid;
-  gap: 16px;
-
-  max-width: 600px;
-  margin-block: 32px;
-}
-
-.technical-info > div {
-  padding: 16px;
-
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-
-  background: #ffffff;
-}
-
-.technical-info dt {
-  margin-bottom: 4px;
-  font-weight: 600;
-}
-
-.technical-info dd {
-  margin: 0;
-}
-
-.temporary-notice {
-  font-size: 0.875rem;
-}
-
-.session-loading {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-}
-
-.login-page {
-  display: grid;
-  min-height: 100vh;
-  padding: 24px;
-  place-items: center;
-}
-
-.login-panel {
-  width: min(100%, 420px);
-  padding: 32px;
-
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-
-  background: #ffffff;
-}
-
-.login-panel header {
-  margin-bottom: 24px;
-}
-
-.login-panel h1 {
-  margin-block: 8px;
-}
-
-.login-system-name {
-  margin: 0;
-  font-weight: 700;
-}
-
-.login-form {
-  display: grid;
-  gap: 20px;
-}
-
-.login-form label {
-  display: grid;
-  gap: 8px;
-}
-
-.login-form input {
-  width: 100%;
-  min-height: 42px;
-  padding-inline: 12px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-}
-
-.login-form button,
-.temporary-header button {
-  min-height: 40px;
-  padding-inline: 16px;
-
-  cursor: pointer;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-}
-
-.login-form button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.login-error {
-  margin: 0;
-  padding: 12px;
-
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-
-  background: #fef2f2;
-}
-
-.session-summary {
-  margin-left: 16px;
-  font-size: 0.875rem;
 }
