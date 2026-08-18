@@ -15,13 +15,28 @@ from src.services.auth_service import (
     AuthenticationResult,
     AuthService,
 )
+from src.api.dependencies.auth import (
+    get_current_user,
+)
 
 
 @pytest.fixture
 def session() -> Mock:
-    return Mock(
+    session_mock = Mock(
         spec=Session,
     )
+
+    session_mock.scalar.return_value = (
+        SimpleNamespace(
+            id=1,
+            name="Administrador Master",
+            description=(
+                "Perfil administrativo."
+            ),
+        )
+    )
+
+    return session_mock
 
 
 @pytest.fixture
@@ -109,7 +124,7 @@ def expected_user_response() -> dict:
         "username": "lucas.miura",
         "email": "lucas@example.com",
         "role_id": 1,
-        "is_active": 1,
+        "is_active": True,
         "last_login_at": (
             "2026-08-06T10:30:00"
         ),
@@ -153,6 +168,9 @@ def test_should_login_successfully(
         "access_token": "jwt-access-token",
         "token_type": "bearer",
         "user": expected_user_response(),
+        "role_name": (
+            "Administrador Master"
+        ),
     }
 
     response_body = response.json()
@@ -450,3 +468,145 @@ def test_should_rollback_when_response_validation_fails(
     )
 
     session.rollback.assert_called_once_with()
+
+
+def test_should_return_authenticated_session(
+    app: FastAPI,
+    session: Mock,
+) -> None:
+    current_user = create_user()
+
+    def override_get_current_user():
+        return current_user
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as test_client:
+        response = test_client.get(
+            "/auth/me"
+        )
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "user": expected_user_response(),
+        "role_name": (
+            "Administrador Master"
+        ),
+    }
+
+
+def test_should_return_403_when_role_is_not_found_on_login(
+    client: TestClient,
+    session: Mock,
+    service: Mock,
+) -> None:
+    user = create_user()
+
+    service.authenticate.return_value = (
+        AuthenticationResult(
+            access_token="jwt-access-token",
+            token_type="bearer",
+            user=user,
+        )
+    )
+
+    session.scalar.return_value = None
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "login": "lucas.miura",
+            "password": "SenhaSegura123",
+        },
+    )
+
+    assert response.status_code == 403
+
+    assert response.json() == {
+        "detail": (
+            "O perfil do usuário autenticado "
+            "não foi encontrado."
+        ),
+    }
+
+    session.rollback.assert_called_once_with()
+
+
+def test_should_return_403_when_role_is_not_found_on_authenticated_session(
+    app: FastAPI,
+    session: Mock,
+) -> None:
+    current_user = create_user()
+
+    session.scalar.return_value = None
+
+    def override_get_current_user():
+        return current_user
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as test_client:
+        response = test_client.get(
+            "/auth/me"
+        )
+
+    assert response.status_code == 403
+
+    assert response.json() == {
+        "detail": (
+            "O perfil do usuário autenticado "
+            "não foi encontrado."
+        ),
+    }
+
+
+def test_should_return_401_on_me_without_token(
+    session: Mock,
+    service: Mock,
+) -> None:
+    test_app = FastAPI()
+
+    def override_get_session():
+        yield session
+
+    def override_get_auth_service():
+        return service
+
+    test_app.dependency_overrides[
+        get_session
+    ] = override_get_session
+
+    test_app.dependency_overrides[
+        get_auth_service
+    ] = override_get_auth_service
+
+    test_app.include_router(
+        router
+    )
+
+    with TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    ) as test_client:
+        response = test_client.get(
+            "/auth/me"
+        )
+
+    assert response.status_code == 401
+
+    assert response.json() == {
+        "detail": (
+            "Token de acesso não informado."
+        ),
+    }

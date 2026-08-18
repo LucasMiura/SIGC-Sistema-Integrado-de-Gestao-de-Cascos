@@ -15,6 +15,7 @@ from src.repositories.user_repository import (
     UserRepository,
 )
 from src.schemas.auth_schema import (
+    AuthenticatedSessionResponse,
     LoginRequest,
     LoginResponse,
 )
@@ -23,6 +24,12 @@ from src.schemas.user_schema import (
 )
 from src.services.auth_service import (
     AuthService,
+)
+from src.api.dependencies.auth import (
+    CurrentUserDependency,
+)
+from src.repositories.role_repository import (
+    RoleRepository,
 )
 
 
@@ -60,6 +67,42 @@ AuthServiceDependency = Annotated[
     Depends(get_auth_service),
 ]
 
+
+def build_authenticated_session(
+    *,
+    session: Session,
+    user,
+) -> AuthenticatedSessionResponse:
+    """
+    Monta os dados públicos da sessão
+    autenticada.
+    """
+
+    role_repository = RoleRepository(
+        session
+    )
+
+    role = role_repository.get_by_id(
+        user.role_id
+    )
+
+    if role is None:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_403_FORBIDDEN
+            ),
+            detail=(
+                "O perfil do usuário autenticado "
+                "não foi encontrado."
+            ),
+        )
+
+    return AuthenticatedSessionResponse(
+        user=UserResponse.model_validate(
+            user
+        ),
+        role_name=role.name,
+    )
 
 def raise_auth_http_exception(
     error: ValueError,
@@ -131,9 +174,10 @@ def login(
             result.user
         )
 
-        user_response = (
-            UserResponse.model_validate(
-                result.user
+        authenticated_session = (
+            build_authenticated_session(
+                session=session,
+                user=result.user,
             )
         )
 
@@ -142,7 +186,10 @@ def login(
                 result.access_token
             ),
             token_type=result.token_type,
-            user=user_response,
+            user=authenticated_session.user,
+            role_name=(
+                authenticated_session.role_name
+            ),
         )
 
     except ValidationError:
@@ -159,3 +206,26 @@ def login(
     except Exception:
         session.rollback()
         raise
+
+
+@router.get(
+    "/me",
+    response_model=(
+        AuthenticatedSessionResponse
+    ),
+    status_code=status.HTTP_200_OK,
+    summary="Consultar sessão autenticada",
+)
+def get_authenticated_session(
+    session: SessionDependency,
+    current_user: CurrentUserDependency,
+) -> AuthenticatedSessionResponse:
+    """
+    Retorna o usuário e o perfil associados
+    ao token de acesso atual.
+    """
+
+    return build_authenticated_session(
+        session=session,
+        user=current_user,
+    )

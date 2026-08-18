@@ -7,25 +7,45 @@ import { AppLayout } from '../layouts/AppLayout'
 import { DashboardPage } from '../pages/DashboardPage'
 import { LoginPage } from '../pages/LoginPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { ProtectedRoute } from './ProtectedRoute'
+import { PublicOnlyRoute } from './PublicOnlyRoute'
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route
-          index
-          element={<DashboardPage />}
-        />
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <LoginPage />
+          </PublicOnlyRoute>
+        }
+      />
 
+      <Route
+        element={
+          <ProtectedRoute />
+        }
+      >
         <Route
-          path="login"
-          element={<LoginPage />}
-        />
+          element={
+            <AppLayout />
+          }
+        >
+          <Route
+            index
+            element={
+              <DashboardPage />
+            }
+          />
 
-        <Route
-          path="*"
-          element={<NotFoundPage />}
-        />
+          <Route
+            path="*"
+            element={
+              <NotFoundPage />
+            }
+          />
+        </Route>
       </Route>
     </Routes>
   )

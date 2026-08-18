@@ -11,6 +11,15 @@ export interface ApiErrorResponse {
   detail?: ApiErrorDetail | ApiErrorDetail[]
 }
 
-export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
+export interface ApiRequestOptions
+  extends Omit<RequestInit, 'body'> {
   body?: unknown
+
+  /**
+   * Define se o Bearer token deve ser
+   * incluído automaticamente.
+   *
+   * O padrão é true.
+   */
+  auth?: boolean
 }

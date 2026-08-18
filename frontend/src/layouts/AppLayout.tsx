@@ -1,26 +1,38 @@
 import {
-  Link,
   Outlet,
 } from 'react-router'
 
+import { useAuth } from '../hooks/useAuth'
+
 export function AppLayout() {
+  const {
+    session,
+    logout,
+  } = useAuth()
+
   return (
     <div className="app-shell">
       <header className="temporary-header">
-        <strong>SIGC</strong>
+        <div>
+          <strong>
+            SIGC
+          </strong>
 
-        <nav
-          className="temporary-navigation"
-          aria-label="Navegação provisória"
+          {session && (
+            <span className="session-summary">
+              {session.user.full_name}
+              {' — '}
+              {session.role_name}
+            </span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={logout}
         >
-          <Link to="/">
-            Dashboard
-          </Link>
-
-          <Link to="/login">
-            Login
-          </Link>
-        </nav>
+          Sair
+        </button>
       </header>
 
       <main className="app-content">

@@ -1,5 +1,7 @@
 import { env } from '../config/env'
+import { tokenStorage } from '../storage/tokenStorage'
 import type {
+  ApiErrorDetail,
   ApiErrorResponse,
   ApiRequestOptions,
 } from '../types/api'
@@ -30,12 +32,16 @@ function buildUrl(path: string): string {
 }
 
 function buildHeaders(
-  headers?: HeadersInit,
-  hasBody = false,
+  headers: HeadersInit | undefined,
+  hasBody: boolean,
+  includeAuth: boolean,
 ): Headers {
   const result = new Headers(headers)
 
-  result.set('Accept', 'application/json')
+  result.set(
+    'Accept',
+    'application/json',
+  )
 
   if (
     hasBody &&
@@ -45,6 +51,20 @@ function buildHeaders(
       'Content-Type',
       'application/json',
     )
+  }
+
+  if (
+    includeAuth &&
+    !result.has('Authorization')
+  ) {
+    const token = tokenStorage.get()
+
+    if (token) {
+      result.set(
+        'Authorization',
+        `Bearer ${token}`,
+      )
+    }
   }
 
   return result
@@ -58,7 +78,9 @@ async function parseResponseBody(
   }
 
   const contentType =
-    response.headers.get('content-type')
+    response.headers.get(
+      'content-type',
+    )
 
   if (
     contentType?.includes(
@@ -71,6 +93,23 @@ async function parseResponseBody(
   const text = await response.text()
 
   return text || null
+}
+
+function getDetailMessage(
+  detail: ApiErrorDetail,
+): string | null {
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  if (
+    typeof detail.msg === 'string' &&
+    detail.msg.trim()
+  ) {
+    return detail.msg
+  }
+
+  return null
 }
 
 function getErrorMessage(
@@ -86,8 +125,28 @@ function getErrorMessage(
       data as ApiErrorResponse
     ).detail
 
-    if (typeof detail === 'string') {
-      return detail
+    if (Array.isArray(detail)) {
+      for (const item of detail) {
+        const message =
+          getDetailMessage(item)
+
+        if (message) {
+          return message
+        }
+      }
+
+      return (
+        `A API retornou o status ${status}.`
+      )
+    }
+
+    if (detail !== undefined) {
+      const message =
+        getDetailMessage(detail)
+
+      if (message) {
+        return message
+      }
     }
   }
 
@@ -103,19 +162,24 @@ export async function apiRequest<T>(
   const {
     body,
     headers,
+    auth = true,
     ...requestOptions
   } = options
 
-  const hasBody = body !== undefined
+  const hasBody =
+    body !== undefined
 
   const response = await fetch(
     buildUrl(path),
     {
       ...requestOptions,
+
       headers: buildHeaders(
         headers,
         hasBody,
+        auth,
       ),
+
       body: hasBody
         ? JSON.stringify(body)
         : undefined,

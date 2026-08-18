@@ -1,8 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router'
+import {
+  BrowserRouter,
+} from 'react-router'
 
 import App from './App'
+import {
+  AuthProvider,
+} from './contexts/AuthProvider'
 import './styles/global.css'
 
 createRoot(
@@ -10,7 +15,9 @@ createRoot(
 ).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 )

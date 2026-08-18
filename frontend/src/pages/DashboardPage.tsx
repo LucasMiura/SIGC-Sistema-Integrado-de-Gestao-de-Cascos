@@ -1,34 +1,59 @@
 import { env } from '../config/env'
+import { useAuth } from '../hooks/useAuth'
 
 export function DashboardPage() {
+  const {
+    session,
+  } = useAuth()
+
   return (
     <section>
-      <h1>SIGC</h1>
+      <h1>
+        Dashboard
+      </h1>
 
       <p>
-        Fundação técnica do frontend
+        Autenticação do frontend
         configurada com sucesso.
       </p>
 
-      <dl className="technical-info">
-        <div>
-          <dt>Frontend</dt>
-          <dd>
-            React + TypeScript + Vite
-          </dd>
-        </div>
+      {session && (
+        <dl className="technical-info">
+          <div>
+            <dt>
+              Usuário
+            </dt>
 
-        <div>
-          <dt>API configurada</dt>
-          <dd>
-            {env.apiBaseUrl}
-          </dd>
-        </div>
-      </dl>
+            <dd>
+              {session.user.full_name}
+            </dd>
+          </div>
+
+          <div>
+            <dt>
+              Perfil
+            </dt>
+
+            <dd>
+              {session.role_name}
+            </dd>
+          </div>
+
+          <div>
+            <dt>
+              API
+            </dt>
+
+            <dd>
+              {env.apiBaseUrl}
+            </dd>
+          </div>
+        </dl>
+      )}
 
       <p className="temporary-notice">
-        Esta não é a interface definitiva
-        do Dashboard.
+        Este ainda não é o Dashboard
+        definitivo do SIGC.
       </p>
     </section>
   )

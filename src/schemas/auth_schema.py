@@ -43,15 +43,25 @@ class LoginRequest(BaseModel):
     )
 
 
-class LoginResponse(BaseModel):
+class AuthenticatedSessionResponse(BaseModel):
     """
-    Resposta retornada após autenticação.
+    Representa a sessão autenticada atual.
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
 
+    user: UserResponse
+    role_name: str
+
+
+class LoginResponse(
+    AuthenticatedSessionResponse
+):
+    """
+    Resposta retornada após autenticação.
+    """
+
     access_token: str
     token_type: str
-    user: UserResponse

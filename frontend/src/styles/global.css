@@ -96,3 +96,89 @@ a {
 .temporary-notice {
   font-size: 0.875rem;
 }
+
+.session-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+}
+
+.login-panel {
+  width: min(100%, 420px);
+  padding: 32px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+.login-panel header {
+  margin-bottom: 24px;
+}
+
+.login-panel h1 {
+  margin-block: 8px;
+}
+
+.login-system-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.login-form {
+  display: grid;
+  gap: 20px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.login-form input {
+  width: 100%;
+  min-height: 42px;
+  padding-inline: 12px;
+
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.login-form button,
+.temporary-header button {
+  min-height: 40px;
+  padding-inline: 16px;
+
+  cursor: pointer;
+
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.login-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-error {
+  margin: 0;
+  padding: 12px;
+
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+
+  background: #fef2f2;
+}
+
+.session-summary {
+  margin-left: 16px;
+  font-size: 0.875rem;
+}
