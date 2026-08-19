@@ -18,11 +18,15 @@ import {
   NavLink,
 } from 'react-router'
 
+import sigcMark from '../../assets/brand/sigc-mark-inverse.png'
+import {
+  hasPermission,
+  type PermissionKey,
+} from '../../config/permissions'
+import { useAuth } from '../../hooks/useAuth'
 import {
   IconButton,
 } from '../ui/IconButton'
-
-import sigcMark from '../../assets/brand/sigc-mark-inverse.png'
 
 interface SidebarProps {
   collapsed: boolean
@@ -33,6 +37,7 @@ interface NavigationItem {
   label: string
   path: string
   icon: LucideIcon
+  permission: PermissionKey
 }
 
 interface NavigationGroup {
@@ -40,88 +45,141 @@ interface NavigationGroup {
   items: NavigationItem[]
 }
 
-const navigationGroups: NavigationGroup[] = [
-  {
-    label: 'Visão geral',
-    items: [
-      {
-        label: 'Dashboard',
-        path: '/',
-        icon: Gauge,
-      },
-    ],
-  },
-  {
-    label: 'Operações',
-    items: [
-      {
-        label: 'Compras',
-        path: '/compras',
-        icon: ShoppingCart,
-      },
-      {
-        label: 'Saídas',
-        path: '/saidas',
-        icon: PackageCheck,
-      },
-      {
-        label: 'Devoluções de clientes',
-        path: '/devolucoes-clientes',
-        icon: RefreshCcw,
-      },
-      {
-        label: 'Remessas ao fornecedor',
-        path: '/devolucoes-fornecedores',
-        icon: Truck,
-      },
-      {
-        label: 'Transferências',
-        path: '/transferencias',
-        icon: Repeat2,
-      },
-    ],
-  },
-  {
-    label: 'Cadastros',
-    items: [
-      {
-        label: 'Peças',
-        path: '/pecas',
-        icon: Boxes,
-      },
-      {
-        label: 'Fornecedores',
-        path: '/fornecedores',
-        icon: Warehouse,
-      },
-      {
-        label: 'Usuários',
-        path: '/usuarios',
-        icon: Users,
-      },
-    ],
-  },
-  {
-    label: 'Controle',
-    items: [
-      {
-        label: 'Acompanhamento',
-        path: '/acompanhamento',
-        icon: FileClock,
-      },
-      {
-        label: 'Auditoria',
-        path: '/auditoria',
-        icon: ShieldCheck,
-      },
-    ],
-  },
-]
+const navigationGroups:
+  NavigationGroup[] = [
+    {
+      label: 'Visão geral',
+      items: [
+        {
+          label: 'Dashboard',
+          path: '/',
+          icon: Gauge,
+          permission:
+            'dashboard',
+        },
+      ],
+    },
+    {
+      label: 'Operações',
+      items: [
+        {
+          label: 'Compras',
+          path: '/compras',
+          icon: ShoppingCart,
+          permission:
+            'purchases',
+        },
+        {
+          label: 'Saídas',
+          path: '/saidas',
+          icon: PackageCheck,
+          permission:
+            'outbounds',
+        },
+        {
+          label:
+            'Devoluções de clientes',
+          path:
+            '/devolucoes-clientes',
+          icon: RefreshCcw,
+          permission:
+            'customerReturns',
+        },
+        {
+          label:
+            'Remessas ao fornecedor',
+          path:
+            '/devolucoes-fornecedores',
+          icon: Truck,
+          permission:
+            'supplierReturns',
+        },
+        {
+          label: 'Transferências',
+          path: '/transferencias',
+          icon: Repeat2,
+          permission:
+            'transfers',
+        },
+      ],
+    },
+    {
+      label: 'Cadastros',
+      items: [
+        {
+          label: 'Peças',
+          path: '/pecas',
+          icon: Boxes,
+          permission:
+            'parts',
+        },
+        {
+          label: 'Fornecedores',
+          path: '/fornecedores',
+          icon: Warehouse,
+          permission:
+            'suppliers',
+        },
+        {
+          label: 'Usuários',
+          path: '/usuarios',
+          icon: Users,
+          permission:
+            'users',
+        },
+      ],
+    },
+    {
+      label: 'Controle',
+      items: [
+        {
+          label: 'Acompanhamento',
+          path: '/acompanhamento',
+          icon: FileClock,
+          permission:
+            'purchaseTracking',
+        },
+        {
+          label: 'Auditoria',
+          path: '/auditoria',
+          icon: ShieldCheck,
+          permission:
+            'audit',
+        },
+      ],
+    },
+  ]
 
 export function Sidebar({
   collapsed,
   onToggle,
 }: SidebarProps) {
+  const {
+    session,
+  } = useAuth()
+
+  const roleName =
+    session?.role_name
+
+  const visibleGroups =
+    navigationGroups
+      .map((group) => ({
+        ...group,
+
+        items:
+          group.items.filter(
+            (item) =>
+              hasPermission(
+                roleName,
+                item.permission,
+              ),
+          ),
+      }))
+      .filter(
+        (group) =>
+          group.items.length > 0,
+      )
+
   return (
     <aside
       className={[
@@ -166,9 +224,13 @@ export function Sidebar({
           onClick={onToggle}
         >
           {collapsed ? (
-            <PanelLeftOpen size={18} />
+            <PanelLeftOpen
+              size={18}
+            />
           ) : (
-            <PanelLeftClose size={18} />
+            <PanelLeftClose
+              size={18}
+            />
           )}
         </IconButton>
       </div>
@@ -177,7 +239,7 @@ export function Sidebar({
         className="app-sidebar__navigation"
         aria-label="Navegação principal"
       >
-        {navigationGroups.map(
+        {visibleGroups.map(
           (group) => (
             <div
               className="app-sidebar__group"

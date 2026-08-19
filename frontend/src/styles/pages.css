@@ -713,6 +713,87 @@
 
 
 /* =========================================================
+   Access denied
+   ========================================================= */
+
+.access-denied-page {
+  display: grid;
+
+  min-height: 55vh;
+
+  place-items: center;
+}
+
+.access-denied-card {
+  display: flex;
+
+  width: min(
+    100%,
+    620px
+  );
+
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.access-denied-card__icon {
+  display: grid;
+
+  width: 56px;
+  height: 56px;
+
+  flex: 0 0 56px;
+
+  place-items: center;
+
+  color: var(--color-warning-700);
+
+  border-radius: var(--radius-lg);
+
+  background:
+    var(--color-warning-50);
+}
+
+.access-denied-card__content {
+  min-width: 0;
+}
+
+.access-denied-card__eyebrow {
+  display: block;
+
+  margin-bottom: var(--space-2);
+
+  color: var(--color-warning-700);
+
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.access-denied-card h1 {
+  margin-bottom: var(--space-3);
+
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+
+  letter-spacing: -0.025em;
+}
+
+.access-denied-card p {
+  max-width: 440px;
+
+  margin-bottom: var(--space-6);
+
+  color: var(--color-text-secondary);
+
+  line-height: var(--line-height-relaxed);
+}
+
+
+
+/* =========================================================
    Responsive
    ========================================================= */
 
@@ -827,4 +908,8 @@
       var(--space-8)
       var(--space-6);
   }
+
+  .access-denied-card {
+    flex-direction: column;
+}
 }

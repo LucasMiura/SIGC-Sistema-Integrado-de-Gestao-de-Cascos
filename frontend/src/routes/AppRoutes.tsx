@@ -4,6 +4,9 @@ import {
 } from 'react-router'
 
 import { AppLayout } from '../layouts/AppLayout'
+import {
+  AccessDeniedPage,
+} from '../pages/AccessDeniedPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { LoginPage } from '../pages/LoginPage'
 import {
@@ -12,6 +15,9 @@ import {
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PublicOnlyRoute } from './PublicOnlyRoute'
+import {
+  RoleProtectedRoute,
+} from './RoleProtectedRoute'
 
 export function AppRoutes() {
   return (
@@ -26,119 +32,178 @@ export function AppRoutes() {
       />
 
       <Route
-        element={<ProtectedRoute />}
+        element={
+          <ProtectedRoute />
+        }
       >
         <Route
-          element={<AppLayout />}
+          element={
+            <AppLayout />
+          }
         >
           <Route
             index
-            element={<DashboardPage />}
+            element={
+              <RoleProtectedRoute
+                permission="dashboard"
+              >
+                <DashboardPage />
+              </RoleProtectedRoute>
+            }
+          />
+
+          <Route
+            path="acesso-negado"
+            element={
+              <AccessDeniedPage />
+            }
           />
 
           <Route
             path="compras"
             element={
-              <ModulePlaceholderPage
-                title="Compras"
-                description="Gerencie as Notas Fiscais de compra e os itens com obrigação de devolução de casco."
-              />
+              <RoleProtectedRoute
+                permission="purchases"
+              >
+                <ModulePlaceholderPage
+                  title="Compras"
+                  description="Gerencie as Notas Fiscais de compra e os itens com obrigação de devolução de casco."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="saidas"
             element={
-              <ModulePlaceholderPage
-                title="Saídas"
-                description="Registre movimentações para oficina e balcão mantendo a rastreabilidade de origem."
-              />
+              <RoleProtectedRoute
+                permission="outbounds"
+              >
+                <ModulePlaceholderPage
+                  title="Saídas"
+                  description="Registre movimentações para oficina e balcão mantendo a rastreabilidade de origem."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="devolucoes-clientes"
             element={
-              <ModulePlaceholderPage
-                title="Devoluções de clientes"
-                description="Acompanhe devoluções totais e parciais vinculadas às saídas realizadas."
-              />
+              <RoleProtectedRoute
+                permission="customerReturns"
+              >
+                <ModulePlaceholderPage
+                  title="Devoluções de clientes"
+                  description="Acompanhe devoluções totais e parciais vinculadas às saídas realizadas."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="devolucoes-fornecedores"
             element={
-              <ModulePlaceholderPage
-                title="Remessas ao fornecedor"
-                description="Controle as devoluções de cascos aos fornecedores e seus respectivos saldos."
-              />
+              <RoleProtectedRoute
+                permission="supplierReturns"
+              >
+                <ModulePlaceholderPage
+                  title="Remessas ao fornecedor"
+                  description="Controle as devoluções de cascos aos fornecedores e seus respectivos saldos."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="transferencias"
             element={
-              <ModulePlaceholderPage
-                title="Transferências"
-                description="Gerencie movimentações entre filiais preservando a responsabilidade pela origem."
-              />
+              <RoleProtectedRoute
+                permission="transfers"
+              >
+                <ModulePlaceholderPage
+                  title="Transferências"
+                  description="Gerencie movimentações entre filiais preservando a responsabilidade pela origem."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="pecas"
             element={
-              <ModulePlaceholderPage
-                title="Peças"
-                description="Mantenha o cadastro das peças sujeitas ao controle de casco."
-              />
+              <RoleProtectedRoute
+                permission="parts"
+              >
+                <ModulePlaceholderPage
+                  title="Peças"
+                  description="Mantenha o cadastro das peças sujeitas ao controle de casco."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="fornecedores"
             element={
-              <ModulePlaceholderPage
-                title="Fornecedores"
-                description="Gerencie fornecedores e seus respectivos contatos."
-              />
+              <RoleProtectedRoute
+                permission="suppliers"
+              >
+                <ModulePlaceholderPage
+                  title="Fornecedores"
+                  description="Gerencie fornecedores e seus respectivos contatos."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="usuarios"
             element={
-              <ModulePlaceholderPage
-                title="Usuários"
-                description="Gerencie acessos, perfis e status dos usuários do SIGC."
-              />
+              <RoleProtectedRoute
+                permission="users"
+              >
+                <ModulePlaceholderPage
+                  title="Usuários"
+                  description="Gerencie acessos, perfis e status dos usuários do SIGC."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="acompanhamento"
             element={
-              <ModulePlaceholderPage
-                title="Acompanhamento"
-                description="Consulte o ciclo completo das compras e os saldos relacionados às devoluções."
-              />
+              <RoleProtectedRoute
+                permission="purchaseTracking"
+              >
+                <ModulePlaceholderPage
+                  title="Acompanhamento"
+                  description="Consulte o ciclo completo das compras e os saldos relacionados às devoluções."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="auditoria"
             element={
-              <ModulePlaceholderPage
-                title="Auditoria"
-                description="Consulte o histórico permanente das operações relevantes realizadas no sistema."
-              />
+              <RoleProtectedRoute
+                permission="audit"
+              >
+                <ModulePlaceholderPage
+                  title="Auditoria"
+                  description="Consulte o histórico permanente das operações relevantes realizadas no sistema."
+                />
+              </RoleProtectedRoute>
             }
           />
 
           <Route
             path="*"
-            element={<NotFoundPage />}
+            element={
+              <NotFoundPage />
+            }
           />
         </Route>
       </Route>
