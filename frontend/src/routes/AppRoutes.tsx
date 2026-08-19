@@ -10,6 +10,9 @@ import {
 import { DashboardPage } from '../pages/DashboardPage'
 import { LoginPage } from '../pages/LoginPage'
 import {
+  SuppliersPage,
+} from '../pages/SuppliersPage'
+import {
   ModulePlaceholderPage,
 } from '../pages/ModulePlaceholderPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
@@ -149,10 +152,7 @@ export function AppRoutes() {
               <RoleProtectedRoute
                 permission="suppliers"
               >
-                <ModulePlaceholderPage
-                  title="Fornecedores"
-                  description="Gerencie fornecedores e seus respectivos contatos."
-                />
+                <SuppliersPage />
               </RoleProtectedRoute>
             }
           />

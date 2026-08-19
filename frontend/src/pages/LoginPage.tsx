@@ -3,6 +3,8 @@ import {
   ArrowRight,
   LockKeyhole,
   UserRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import {
   useState,
@@ -51,6 +53,11 @@ export function LoginPage() {
   const [
     isSubmitting,
     setIsSubmitting,
+  ] = useState(false)
+  
+  const [
+    isPasswordVisible,
+    setIsPasswordVisible,
   ] = useState(false)
 
   const {
@@ -232,7 +239,11 @@ export function LoginPage() {
 
               <TextField
                 label="Senha"
-                type="password"
+                type={
+                  isPasswordVisible
+                    ? 'text'
+                    : 'password'
+                }
                 name="password"
                 autoComplete="current-password"
                 value={password}
@@ -247,6 +258,39 @@ export function LoginPage() {
                 }}
                 disabled={isSubmitting}
                 required
+                trailingAction={
+                  <button
+                    type="button"
+                    className="login-password-field__toggle"
+                    aria-label={
+                      isPasswordVisible
+                        ? 'Ocultar senha'
+                        : 'Mostrar senha'
+                    }
+                    aria-pressed={
+                      isPasswordVisible
+                    }
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setIsPasswordVisible(
+                        (currentValue) =>
+                          !currentValue,
+                      )
+                    }}
+                  >
+                    {isPasswordVisible ? (
+                      <EyeOff
+                        size={18}
+                        strokeWidth={1.8}
+                      />
+                    ) : (
+                      <Eye
+                        size={18}
+                        strokeWidth={1.8}
+                      />
+                    )}
+                  </button>
+                }
               />
             </div>
 

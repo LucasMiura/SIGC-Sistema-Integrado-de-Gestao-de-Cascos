@@ -1,5 +1,6 @@
 import type {
   InputHTMLAttributes,
+  ReactNode,
 } from 'react'
 
 interface TextFieldProps
@@ -7,12 +8,14 @@ interface TextFieldProps
   label: string
   error?: string | null
   hint?: string
+  trailingAction?: ReactNode
 }
 
 export function TextField({
   label,
   error,
   hint,
+  trailingAction,
   id,
   className = '',
   ...props
@@ -41,26 +44,43 @@ export function TextField({
         {label}
       </span>
 
-      <input
-        {...props}
-        id={inputId}
+      <div
         className={[
-          'ui-field__input',
-          error
-            ? 'ui-field__input--error'
+          'ui-field__control',
+          trailingAction
+            ? 'ui-field__control--with-action'
             : '',
         ]
           .filter(Boolean)
           .join(' ')}
-        aria-invalid={
-          error
-            ? true
-            : undefined
-        }
-        aria-describedby={
-          descriptionId
-        }
-      />
+      >
+        <input
+          {...props}
+          id={inputId}
+          className={[
+            'ui-field__input',
+            error
+              ? 'ui-field__input--error'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-invalid={
+            error
+              ? true
+              : undefined
+          }
+          aria-describedby={
+            descriptionId
+          }
+        />
+
+        {trailingAction && (
+          <div className="ui-field__trailing-action">
+            {trailingAction}
+          </div>
+        )}
+      </div>
 
       {error ? (
         <span

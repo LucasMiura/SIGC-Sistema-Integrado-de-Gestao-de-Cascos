@@ -203,6 +203,30 @@
   color: var(--color-danger-700);
 }
 
+.ui-field__control {
+  position: relative;
+
+  width: 100%;
+}
+
+.ui-field__control--with-action
+.ui-field__input {
+  padding-right: 3rem;
+}
+
+.ui-field__trailing-action {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+
+  display: grid;
+
+  place-items: center;
+
+  transform:
+    translateY(-50%);
+}
+
 
 /* =========================================================
    Card
