@@ -1,10 +1,22 @@
 import {
+  AlertCircle,
   ArrowRight,
+  Boxes,
   CheckCircle2,
   Clock3,
-  ShieldCheck,
-  Sparkles,
+  PackageCheck,
+  RefreshCcw,
+  RotateCcw,
+  Truck,
+  Warehouse,
 } from 'lucide-react'
+import {
+  useEffect,
+  useState,
+} from 'react'
+import {
+  useNavigate,
+} from 'react-router'
 
 import {
   Button,
@@ -17,13 +29,80 @@ import {
 } from '../components/ui/PageHeader'
 import {
   StatusBadge,
+  type StatusBadgeTone,
 } from '../components/ui/StatusBadge'
+import {
+  hasPermission,
+} from '../config/permissions'
 import { useAuth } from '../hooks/useAuth'
+import {
+  dashboardService,
+} from '../services/dashboardService'
+import {
+  ApiError,
+} from '../services/httpClient'
+import type {
+  DashboardSummary,
+} from '../types/dashboard'
+
+const numberFormatter =
+  new Intl.NumberFormat(
+    'pt-BR',
+  )
+
+interface DeadlineItem {
+  label: string
+  description: string
+  quantity: number
+  tone: StatusBadgeTone
+}
+
+function formatQuantity(
+  value: number,
+): string {
+  return numberFormatter.format(
+    value,
+  )
+}
+
+function getDashboardErrorMessage(
+  error: unknown,
+): string {
+  if (error instanceof ApiError) {
+    return error.message
+  }
+
+  return (
+    'Não foi possível carregar os indicadores do Dashboard.'
+  )
+}
 
 export function DashboardPage() {
   const {
     session,
   } = useAuth()
+
+  const navigate =
+    useNavigate()
+
+  const [
+    summary,
+    setSummary,
+  ] = useState<
+    DashboardSummary | null
+  >(null)
+
+  const [
+    isLoading,
+    setIsLoading,
+  ] = useState(true)
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState<string | null>(
+    null,
+  )
 
   const firstName =
     session?.user.full_name
@@ -31,160 +110,694 @@ export function DashboardPage() {
       .split(' ')[0]
     ?? 'Usuário'
 
+  const canViewTracking =
+    hasPermission(
+      session?.role_name,
+      'purchaseTracking',
+    )
+
+  async function reloadDashboard() {
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const data =
+        await dashboardService
+          .getSummary()
+
+      setSummary(data)
+    } catch (error) {
+      setSummary(null)
+
+      setErrorMessage(
+        getDashboardErrorMessage(
+          error,
+        ),
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(
+    () => {
+      let ignore = false
+
+      dashboardService
+        .getSummary()
+        .then((data) => {
+          if (ignore) {
+            return
+          }
+
+          setSummary(data)
+          setErrorMessage(null)
+        })
+        .catch((error: unknown) => {
+          if (ignore) {
+            return
+          }
+
+          setSummary(null)
+
+          setErrorMessage(
+            getDashboardErrorMessage(
+              error,
+            ),
+          )
+        })
+        .finally(() => {
+          if (ignore) {
+            return
+          }
+
+          setIsLoading(false)
+        })
+
+      return () => {
+        ignore = true
+      }
+    },
+    [],
+  )
+
+  if (isLoading) {
+    return (
+      <div className="page-stack">
+        <PageHeader
+          eyebrow="Visão geral"
+          title={`Olá, ${firstName}.`}
+          description="Carregando a situação operacional atual do SIGC."
+        />
+
+        <section
+          className="dashboard-state"
+          aria-live="polite"
+        >
+          <div className="dashboard-state__spinner" />
+
+          <div>
+            <strong>
+              Atualizando indicadores
+            </strong>
+
+            <p>
+              Consultando as informações
+              operacionais mais recentes.
+            </p>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (
+    errorMessage ||
+    !summary
+  ) {
+    return (
+      <div className="page-stack">
+        <PageHeader
+          eyebrow="Visão geral"
+          title={`Olá, ${firstName}.`}
+          description="Não foi possível apresentar os indicadores operacionais neste momento."
+        />
+
+        <Card
+          className="dashboard-error"
+          padding="lg"
+        >
+          <div className="dashboard-error__icon">
+            <AlertCircle
+              size={26}
+              strokeWidth={1.8}
+            />
+          </div>
+
+          <div className="dashboard-error__content">
+            <span>
+              Falha ao carregar
+            </span>
+
+            <h2>
+              Os indicadores não puderam
+              ser atualizados.
+            </h2>
+
+            <p>
+              {errorMessage ??
+                'Ocorreu um erro inesperado ao consultar o Dashboard.'}
+            </p>
+
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                void reloadDashboard()
+              }}
+            >
+              <RotateCcw
+                size={16}
+              />
+
+              Tentar novamente
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  const deadlineItems:
+    DeadlineItem[] = [
+      {
+        label: 'Normal',
+        description:
+          'Mais de 30 dias',
+        quantity:
+          summary.deadline
+            .normal_quantity,
+        tone: 'success',
+      },
+      {
+        label: 'Atenção',
+        description:
+          'De 8 a 30 dias',
+        quantity:
+          summary.deadline
+            .attention_quantity,
+        tone: 'attention',
+      },
+      {
+        label: 'Urgente',
+        description:
+          'Até 7 dias',
+        quantity:
+          summary.deadline
+            .urgent_quantity,
+        tone: 'urgent',
+      },
+      {
+        label: 'Atrasado',
+        description:
+          'Prazo vencido',
+        quantity:
+          summary.deadline
+            .overdue_quantity,
+        tone: 'overdue',
+      },
+    ]
+
+  const criticalQuantity =
+    summary.deadline
+      .urgent_quantity +
+    summary.deadline
+      .overdue_quantity
+
   return (
     <div className="page-stack">
       <PageHeader
         eyebrow="Visão geral"
         title={`Olá, ${firstName}.`}
-        description={
-          'A base visual do SIGC está pronta para receber os indicadores operacionais reais.'
-        }
+        description="Acompanhe os principais indicadores do ciclo de cascos e identifique rapidamente o que exige atenção."
         actions={
-          <Button
-            variant="secondary"
-          >
-            Ver acompanhamento
-            <ArrowRight size={16} />
-          </Button>
+          canViewTracking ? (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                navigate(
+                  '/acompanhamento',
+                )
+              }}
+            >
+              Ver acompanhamento
+
+              <ArrowRight
+                size={16}
+              />
+            </Button>
+          ) : undefined
         }
       />
 
       <section
-        className="dashboard-welcome"
-        aria-label="Apresentação do novo ambiente"
+        className="dashboard-overview"
+        aria-label="Resumo operacional"
       >
-        <div className="dashboard-welcome__content">
-          <span className="dashboard-welcome__eyebrow">
-            <Sparkles size={15} />
-            Nova experiência SIGC
-          </span>
-
-          <h2>
-            Operação clara.
-            Informação no lugar certo.
-          </h2>
-
-          <p>
-            O frontend agora utiliza uma base
-            visual própria, preparada para
-            transformar os fluxos de cascos em
-            uma experiência rápida, organizada
-            e previsível.
-          </p>
-        </div>
-
-        <div
-          className="dashboard-welcome__visual"
-          aria-hidden="true"
+        <Card
+          className="dashboard-primary-card"
+          padding="lg"
         >
-          <div className="dashboard-welcome__orb dashboard-welcome__orb--one" />
-          <div className="dashboard-welcome__orb dashboard-welcome__orb--two" />
-
-          <div className="dashboard-welcome__symbol">
-            SIGC
+          <div className="dashboard-primary-card__icon">
+            <Boxes
+              size={25}
+              strokeWidth={1.7}
+            />
           </div>
-        </div>
+
+          <div className="dashboard-primary-card__content">
+            <span className="dashboard-card-label">
+              Quantidade disponível
+            </span>
+
+            <strong className="dashboard-primary-card__value">
+              {formatQuantity(
+                summary
+                  .total_available_quantity,
+              )}
+            </strong>
+
+            <p>
+              Cascos disponíveis nas
+              origens atualmente
+              acompanhadas.
+            </p>
+          </div>
+        </Card>
+
+        <Card
+          className="dashboard-primary-card"
+          padding="lg"
+        >
+          <div className="dashboard-primary-card__icon">
+            <Warehouse
+              size={25}
+              strokeWidth={1.7}
+            />
+          </div>
+
+          <div className="dashboard-primary-card__content">
+            <span className="dashboard-card-label">
+              Origens com saldo
+            </span>
+
+            <strong className="dashboard-primary-card__value">
+              {formatQuantity(
+                summary
+                  .total_origin_count,
+              )}
+            </strong>
+
+            <p>
+              Origens consideradas na
+              situação operacional atual.
+            </p>
+          </div>
+        </Card>
+
+        <Card
+          className={[
+            'dashboard-primary-card',
+            criticalQuantity > 0
+              ? 'dashboard-primary-card--critical'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          padding="lg"
+        >
+          <div className="dashboard-primary-card__icon">
+            <Clock3
+              size={25}
+              strokeWidth={1.7}
+            />
+          </div>
+
+          <div className="dashboard-primary-card__content">
+            <span className="dashboard-card-label">
+              Exigem ação
+            </span>
+
+            <strong className="dashboard-primary-card__value">
+              {formatQuantity(
+                criticalQuantity,
+              )}
+            </strong>
+
+            <p>
+              Quantidade urgente ou
+              atualmente atrasada.
+            </p>
+          </div>
+        </Card>
       </section>
 
-      <section className="dashboard-preview-grid">
-        <Card padding="md">
-          <div className="preview-card">
-            <div className="preview-card__icon">
-              <CheckCircle2 size={20} />
-            </div>
-
-            <div>
-              <span className="preview-card__label">
-                Sessão
-              </span>
-
-              <strong>
-                Autenticada
-              </strong>
-
-              <StatusBadge tone="success">
-                Ativa
-              </StatusBadge>
-            </div>
-          </div>
-        </Card>
-
-        <Card padding="md">
-          <div className="preview-card">
-            <div className="preview-card__icon">
-              <ShieldCheck size={20} />
-            </div>
-
-            <div>
-              <span className="preview-card__label">
-                Perfil atual
-              </span>
-
-              <strong>
-                {session?.role_name}
-              </strong>
-
-              <StatusBadge tone="info">
-                Autorização ativa
-              </StatusBadge>
-            </div>
-          </div>
-        </Card>
-
-        <Card padding="md">
-          <div className="preview-card">
-            <div className="preview-card__icon">
-              <Clock3 size={20} />
-            </div>
-
-            <div>
-              <span className="preview-card__label">
-                Prazos
-              </span>
-
-              <strong>
-                Design preparado
-              </strong>
-
-              <StatusBadge tone="attention">
-                Atenção
-              </StatusBadge>
-            </div>
-          </div>
-        </Card>
-      </section>
-
-      <section>
-        <div className="section-heading">
+      <section className="dashboard-section">
+        <div className="dashboard-section__heading">
           <div>
             <span>
-              Linguagem de status
+              Controle de prazos
             </span>
 
             <h2>
-              Alertas claros sem depender
-              apenas de cor
+              Situação das devoluções
             </h2>
           </div>
+
+          <p>
+            Classificação da quantidade
+            pendente conforme o prazo de
+            devolução.
+          </p>
         </div>
 
-        <Card padding="lg">
-          <div className="status-preview">
-            <StatusBadge tone="success">
-              Normal
-            </StatusBadge>
+        <div className="dashboard-deadline-grid">
+          {deadlineItems.map(
+            (item) => (
+              <Card
+                key={item.label}
+                className="dashboard-deadline-card"
+                padding="md"
+              >
+                <div className="dashboard-deadline-card__header">
+                  <StatusBadge
+                    tone={item.tone}
+                  >
+                    {item.label}
+                  </StatusBadge>
 
-            <StatusBadge tone="attention">
-              Atenção
-            </StatusBadge>
+                  <span>
+                    {item.description}
+                  </span>
+                </div>
 
-            <StatusBadge tone="urgent">
-              Urgente
-            </StatusBadge>
+                <strong>
+                  {formatQuantity(
+                    item.quantity,
+                  )}
+                </strong>
 
-            <StatusBadge tone="overdue">
-              Atrasado
-            </StatusBadge>
+                <span className="dashboard-deadline-card__caption">
+                  unidades
+                </span>
+              </Card>
+            ),
+          )}
+        </div>
+      </section>
+
+      <section className="dashboard-section">
+        <div className="dashboard-section__heading">
+          <div>
+            <span>
+              Fluxo de retorno
+            </span>
+
+            <h2>
+              Panorama das devoluções
+            </h2>
+          </div>
+
+          <p>
+            Resumo das principais etapas
+            do retorno dos cascos.
+          </p>
+        </div>
+
+        <div className="dashboard-flow-grid">
+          <Card
+            className="dashboard-flow-card"
+            padding="lg"
+          >
+            <div className="dashboard-flow-card__header">
+              <div className="dashboard-flow-card__icon">
+                <RefreshCcw
+                  size={20}
+                />
+              </div>
+
+              <div>
+                <span className="dashboard-card-label">
+                  Clientes
+                </span>
+
+                <h3>
+                  Devoluções recebidas
+                </h3>
+              </div>
+            </div>
+
+            <div className="dashboard-flow-card__main">
+              <strong>
+                {formatQuantity(
+                  summary
+                    .customer_returns
+                    .pending_quantity,
+                )}
+              </strong>
+
+              <span>
+                unidades pendentes
+              </span>
+            </div>
+
+            <div className="dashboard-flow-card__stats">
+              <div>
+                <span>
+                  Saíram
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .customer_returns
+                      .outbound_quantity,
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Retornaram
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .customer_returns
+                      .returned_quantity,
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Concluídas
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .customer_returns
+                      .completed_origin_count,
+                  )}
+                </strong>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className="dashboard-flow-card"
+            padding="lg"
+          >
+            <div className="dashboard-flow-card__header">
+              <div className="dashboard-flow-card__icon">
+                <Truck
+                  size={20}
+                />
+              </div>
+
+              <div>
+                <span className="dashboard-card-label">
+                  Fornecedores
+                </span>
+
+                <h3>
+                  Remessas de cascos
+                </h3>
+              </div>
+            </div>
+
+            <div className="dashboard-flow-card__main">
+              <strong>
+                {formatQuantity(
+                  summary
+                    .supplier_returns
+                    .pending_quantity,
+                )}
+              </strong>
+
+              <span>
+                unidades pendentes
+              </span>
+            </div>
+
+            <div className="dashboard-flow-card__stats dashboard-flow-card__stats--two">
+              <div>
+                <span>
+                  Disponíveis
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .supplier_returns
+                      .available_quantity,
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Devolvidas
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .supplier_returns
+                      .returned_quantity,
+                  )}
+                </strong>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className="dashboard-flow-card"
+            padding="lg"
+          >
+            <div className="dashboard-flow-card__header">
+              <div className="dashboard-flow-card__icon">
+                <PackageCheck
+                  size={20}
+                />
+              </div>
+
+              <div>
+                <span className="dashboard-card-label">
+                  Transferências
+                </span>
+
+                <h3>
+                  Retorno à origem
+                </h3>
+              </div>
+            </div>
+
+            <div className="dashboard-flow-card__main">
+              <strong>
+                {formatQuantity(
+                  summary
+                    .transfer_returns
+                    .pending_quantity,
+                )}
+              </strong>
+
+              <span>
+                unidades pendentes
+              </span>
+            </div>
+
+            <div className="dashboard-flow-card__stats dashboard-flow-card__stats--two">
+              <div>
+                <span>
+                  Disponíveis
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .transfer_returns
+                      .available_quantity,
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Devolvidas
+                </span>
+
+                <strong>
+                  {formatQuantity(
+                    summary
+                      .transfer_returns
+                      .returned_quantity,
+                  )}
+                </strong>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      <section className="dashboard-customer-status">
+        <Card
+          className="dashboard-customer-status__card"
+          padding="lg"
+        >
+          <div className="dashboard-customer-status__header">
+            <div>
+              <span className="dashboard-card-label">
+                Devoluções de clientes
+              </span>
+
+              <h2>
+                Situação das origens
+              </h2>
+            </div>
+
+            <CheckCircle2
+              size={22}
+              strokeWidth={1.7}
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="dashboard-customer-status__grid">
+            <div>
+              <span>
+                Pendentes
+              </span>
+
+              <strong>
+                {formatQuantity(
+                  summary
+                    .customer_returns
+                    .pending_origin_count,
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Parciais
+              </span>
+
+              <strong>
+                {formatQuantity(
+                  summary
+                    .customer_returns
+                    .partial_origin_count,
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Concluídas
+              </span>
+
+              <strong>
+                {formatQuantity(
+                  summary
+                    .customer_returns
+                    .completed_origin_count,
+                )}
+              </strong>
+            </div>
           </div>
         </Card>
       </section>
