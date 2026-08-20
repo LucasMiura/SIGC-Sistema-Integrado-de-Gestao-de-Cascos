@@ -3214,6 +3214,7 @@ tr:last-child td {
     vertical;
 
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .part-table__supplier {
