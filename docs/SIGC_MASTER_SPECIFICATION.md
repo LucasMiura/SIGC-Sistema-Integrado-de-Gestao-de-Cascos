@@ -11,8 +11,8 @@
 | Nome do sistema         | SIGC                                  |
 | Nome completo           | Sistema Integrado de Gestão de Cascos |
 | Autor                   | Lucas do Nascimento Miura             |
-| Status                  | Backend congelado / Frontend em implementação |
-| Versão da especificação | 1.2.0                                 |
+| Status                  | Backend funcional / Frontend em implementação incremental |
+| Versão da especificação | 1.3.0                                 |
 | Data de criação         | 23/07/2026                            |
 | Plataforma inicial      | Aplicação Web Interna                 |
 | Linguagem principal     | Python                                |
@@ -7104,7 +7104,48 @@ Evitar decisões técnicas que impeçam a evolução futura do sistema.
 
 ### Decisão
 
-O SIGC utilizará um padrão visual centralizado e consistente.
+O SIGC utilizará um Design System próprio e centralizado para garantir consistência visual e comportamental entre todos os módulos da aplicação.
+
+O frontend deverá priorizar a reutilização de componentes, tokens e padrões existentes antes da criação de soluções específicas para uma única tela.
+
+O Design System deverá padronizar, sempre que aplicável:
+
+* Tipografia;
+* Cores;
+* Espaçamentos;
+* Raios de borda;
+* Sombras;
+* Botões;
+* Campos de formulário;
+* Badges de status;
+* Cards;
+* Tabelas;
+* Filtros;
+* Modais;
+* Painéis;
+* Estados vazios;
+* Estados de carregamento;
+* Mensagens de erro;
+* Notificações de sucesso;
+* Navegação;
+* Comportamento responsivo.
+
+Componentes equivalentes não deverão apresentar comportamentos ou aparências arbitrariamente diferentes entre módulos.
+
+### Princípios visuais
+
+A interface deverá priorizar:
+
+* Hierarquia visual clara;
+* Contraste adequado;
+* Separação perceptível entre grupos de informação;
+* Baixa poluição visual;
+* Uso moderado de bordas;
+* Uso de sombras quando necessário para estabelecer profundidade;
+* Espaçamento consistente;
+* Legibilidade;
+* Identificação imediata de estados;
+* Aparência profissional adequada a um sistema operacional interno.
 
 ### Motivo
 
@@ -7113,19 +7154,97 @@ Garantir que todas as telas possuam:
 * Identidade visual uniforme;
 * Componentes padronizados;
 * Navegação consistente;
-* Aparência profissional.
+* Menor carga cognitiva;
+* Maior previsibilidade;
+* Aparência profissional;
+* Maior facilidade de manutenção e evolução.
 
 ---
 
-## DT-021 — Interface
+## DT-021 — Interface e experiência do usuário
 
 ### Decisão
 
-A interface deverá ser moderna, profissional, intuitiva e limpa.
+A interface deverá ser moderna, profissional, intuitiva, limpa e orientada à execução de operações reais.
+
+Decisões visuais não deverão considerar apenas estética. A interface deverá reduzir ambiguidades, tornar estados importantes perceptíveis e diminuir a possibilidade de erros operacionais.
+
+### Feedback ao usuário
+
+A interface deverá fornecer feedback claro após ações relevantes.
+
+#### Erros
+
+Erros que impeçam a conclusão de uma operação deverão:
+
+* Possuir contraste visual evidente;
+* Ser apresentados próximos ao contexto da operação;
+* Permanecer visíveis enquanto exigirem uma ação do usuário;
+* Não depender exclusivamente de texto vermelho;
+* Não depender da posição atual da rolagem para serem percebidos.
+
+Em formulários ou painéis extensos, erros gerais deverão ser posicionados em região visível e previsível.
+
+#### Sucesso
+
+Operações concluídas com sucesso poderão utilizar notificações temporárias do tipo toast.
+
+O toast deverá:
+
+* Possuir contraste suficiente em relação ao restante da interface;
+* Informar objetivamente a operação concluída;
+* Não interromper desnecessariamente o fluxo;
+* Poder ser fechado manualmente;
+* Desaparecer automaticamente após período adequado.
+
+#### Estados selecionados
+
+Filtros, abas e controles equivalentes deverão indicar de forma evidente qual opção está selecionada.
+
+A diferenciação entre estado selecionado e não selecionado não deverá depender de alterações excessivamente sutis de cor.
+
+### Modais e painéis
+
+Modais e painéis deverão manter padrão consistente de:
+
+* Largura;
+* Padding;
+* Bordas arredondadas;
+* Cabeçalho;
+* Botão de fechamento;
+* Área rolável;
+* Rodapé de ações;
+* Hierarquia das ações;
+* Feedback de erro;
+* Responsividade.
+
+O botão `X` deverá representar o fechamento da interface, e não deverá ser utilizado como única indicação de conclusão de uma operação quando isso puder gerar ambiguidade.
+
+Quando fechar uma janela não cancelar dados já persistidos, a interface deverá deixar esse comportamento suficientemente claro.
+
+### Prevenção de erros
+
+Operações destrutivas ou que alterem estado relevante deverão possuir confirmação adequada quando necessário.
+
+A interface deverá diferenciar claramente:
+
+* Cancelar uma edição ainda não salva;
+* Fechar uma janela;
+* Desativar um registro;
+* Cancelar uma operação já registrada;
+* Concluir uma etapa operacional.
 
 ### Motivo
 
-O sistema será utilizado durante operações reais e deverá priorizar produtividade e redução de erros.
+O sistema será utilizado durante operações reais e deverá priorizar:
+
+* Produtividade;
+* Clareza;
+* Prevenção de erros;
+* Redução de ambiguidades;
+* Aprendizado rápido;
+* Consistência entre módulos;
+* Confiança do usuário nas ações executadas.
 
 ---
 
@@ -7453,6 +7572,123 @@ Ilustrações não deverão ser adicionadas apenas como decoração.
 Manter consistência e legibilidade nos controles funcionais ao mesmo tempo em que o sistema desenvolve uma identidade visual própria e não genérica.
 
 ---
+## DT-041 — Arquitetura do frontend
+
+### Decisão
+
+O frontend do SIGC será desenvolvido como aplicação web utilizando:
+
+* React;
+* TypeScript;
+* Vite;
+* React Router;
+* Fetch API;
+* Lucide React;
+* Manrope.
+
+O frontend será mantido em diretório próprio:
+
+frontend/
+
+As dependências do frontend serão gerenciadas pelo ecossistema Node.js através de:
+
+frontend/package.json
+frontend/package-lock.json
+
+As dependências Python continuarão separadas no:
+
+requirements.txt
+
+O requirements.txt não deverá ser utilizado para registrar dependências JavaScript ou TypeScript.
+
+### Responsabilidades
+
+O frontend será responsável principalmente por:
+
+* Apresentação;
+* Navegação;
+* Interação com o usuário;
+* Estados da interface;
+* Consumo da API;
+* Feedback visual;
+* Proteção de navegação conforme a sessão e o perfil;
+* Aplicação do Design System.
+
+O backend continuará sendo responsável pela validação definitiva de:
+
+* Autenticação;
+* Autorização;
+* Regras de negócio;
+* Integridade das operações;
+* Auditoria;
+* Persistência.
+
+Restrições existentes apenas no frontend não deverão ser consideradas mecanismos suficientes de segurança ou integridade.
+
+### Motivo
+
+A separação entre frontend e backend:
+
+* Mantém responsabilidades bem definidas;
+* Evita duplicação das regras centrais;
+* Facilita manutenção;
+* Permite evolução independente da interface;
+* Mantém a API como fonte definitiva das regras operacionais.
+
+---
+
+## DT-042 — Listagens e filtros operacionais
+
+### Decisão
+
+As listagens do SIGC deverão seguir padrões previsíveis de ordenação e filtragem.
+
+Como regra geral, registros mais recentes deverão ser apresentados antes dos mais antigos quando não existir uma prioridade operacional superior.
+
+Quando uma entidade possuir estado ativo e inativo:
+
+* Registros ativos deverão ser apresentados por padrão;
+* O usuário deverá possuir opção clara para consultar registros inativos;
+* O filtro selecionado deverá possuir destaque visual evidente.
+
+Quando existirem estados operacionais específicos, os filtros deverão representar os estados relevantes daquele módulo.
+
+### Exceções
+
+Uma listagem poderá possuir prioridade operacional superior à ordem cronológica.
+
+Nos contatos de fornecedores, por exemplo:
+
+1. O contato principal possui prioridade;
+2. Em seguida são apresentados os demais contatos ativos;
+3. Dentro das prioridades equivalentes, registros mais recentes possuem preferência.
+
+### Motivo
+
+A padronização facilita a localização das informações mais relevantes, reduz diferenças arbitrárias entre módulos e torna o comportamento das tabelas previsível.
+
+---
+
+## DT-043 — Validação técnica do frontend
+
+### Decisão
+
+Alterações funcionais no frontend deverão ser validadas, no mínimo, por:
+
+npm run lint
+npm run build
+
+O lint deverá ser utilizado para identificar problemas de qualidade e padrões do código.
+
+O build deverá validar a compilação TypeScript e a geração da aplicação pelo Vite.
+
+Quando uma alteração afetar comportamento funcional, também deverão ser realizados testes manuais do fluxo correspondente.
+
+### Motivo
+
+Reduzir regressões e impedir que alterações aparentemente corretas visualmente sejam incorporadas ao projeto contendo erros de TypeScript, lint ou comportamento.
+
+---
 
 ## 19.1 Resumo das decisões
 
@@ -7462,16 +7698,30 @@ A arquitetura inicial do SIGC será:
 DESENVOLVIMENTO
 
 Computador local
+        │
+        ├── Frontend
+        │      ↓
+        │   React + TypeScript
+        │      ↓
+        │     Vite
+        │      ↓
+        │   Navegador
+        │
+        └── Backend
+               ↓
+             Python
+               ↓
+            FastAPI
+               ↓
+           SQLAlchemy
+               ↓
+      SQLite de desenvolvimento
+
+Código e documentação
         ↓
-Python
+       Git
         ↓
-Aplicação Web
-        ↓
-SQLite de desenvolvimento
-        ↓
-Git
-        ↓
-GitHub
+      GitHub
 ```
 
 Posteriormente:
@@ -8143,6 +8393,68 @@ Nenhuma decisão pendente deverá ser implementada de forma definitiva sem avali
 ---
 
 # 21. HISTÓRICO DE ALTERAÇÕES
+
+## Versão 1.3.0 — 20/08/2026
+
+### Frontend
+
+* Consolidada a implementação inicial do frontend do SIGC;
+* Implementada autenticação integrada à API;
+* Implementada proteção de rotas autenticadas;
+* Implementado controle de navegação conforme perfil;
+* Implementado layout administrativo principal;
+* Implementada sidebar responsiva e recolhível;
+* Consolidada a identidade visual inicial do sistema;
+* Implementado Dashboard integrado ao backend;
+* Implementado módulo de Fornecedores;
+* Implementado gerenciamento de Contatos de fornecedores;
+* Implementado módulo de Peças;
+* Implementado módulo de Compras;
+* Implementado gerenciamento dos itens das compras;
+* Implementados filtros operacionais por estado;
+* Padronizada a ordenação das listagens;
+* Padronizados modais e painéis;
+* Melhorada a responsividade das interfaces;
+* Implementadas mensagens de erro com maior destaque;
+* Implementado componente reutilizável de feedback;
+* Implementadas notificações de sucesso por toast;
+* Reforçado visualmente o estado selecionado dos filtros;
+* Implementada ação explícita de conclusão do lançamento de itens da compra;
+* Padronizados estados de carregamento, erro e ausência de dados;
+* Consolidada validação do frontend através de lint e build.
+
+### UX/UI
+
+* Consolidado Design System próprio do SIGC;
+* Definidos padrões de espaçamento, hierarquia, cards, tabelas, formulários, modais e painéis;
+* Priorizada separação visual clara entre grupos de informação;
+* Evitado uso excessivo de bordas em favor de hierarquia, espaçamento e profundidade;
+* Definido que estados selecionados deverão possuir contraste evidente;
+* Definido que erros críticos não deverão depender da posição de rolagem para serem percebidos;
+* Definido toast como padrão para confirmação não bloqueante de operações concluídas;
+* Definida diferenciação clara entre fechar, cancelar, desativar e concluir uma operação;
+* Consolidada consistência visual entre Fornecedores, Contatos, Peças e Compras.
+
+### Arquitetura
+
+* Formalizada a arquitetura React + TypeScript + Vite do frontend;
+* Mantida separação entre frontend e backend;
+* Mantida a API FastAPI como autoridade definitiva das regras de negócio;
+* Formalizada a separação entre dependências Python e Node.js;
+* Definido package.json e package-lock.json como controle das dependências do frontend;
+* Definido requirements.txt exclusivamente para dependências Python;
+* Documentado npm ci como método recomendado para instalação reproduzível das dependências do frontend.
+
+### Documentação
+
+* Atualizado o README principal para contemplar backend e frontend;
+* Documentado processo completo de instalação em um novo computador;
+* Documentada inicialização independente de backend e frontend;
+* Documentados comandos de lint e build do frontend;
+* Substituído o README padrão do Vite por documentação específica do frontend do SIGC;
+* Atualizada a especificação oficial com as decisões consolidadas durante a implementação da interface.
+
+---
 
 ## Versão 1.2.0 — 17/08/2026
 
