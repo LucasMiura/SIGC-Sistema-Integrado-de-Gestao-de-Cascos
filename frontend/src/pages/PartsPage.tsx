@@ -31,6 +31,9 @@ import {
 import {
   StatusBadge,
 } from '../components/ui/StatusBadge'
+import {
+  Toast,
+} from '../components/ui/Toast'
 
 import {
   ApiError,
@@ -154,6 +157,13 @@ export function PartsPage() {
     deactivateJustification,
     setDeactivateJustification,
   ] = useState('')
+
+  const [
+    toastMessage,
+    setToastMessage,
+  ] = useState<string | null>(
+    null,
+  )
 
   function replacePart(
     updatedPart: Part,
@@ -465,6 +475,11 @@ export function PartsPage() {
         replacePart(
           updatedPart,
         )
+
+        setToastMessage(
+          'Peça atualizada com sucesso.',
+        )
+
       } else {
         const payload:
           PartCreatePayload = {
@@ -495,6 +510,10 @@ export function PartsPage() {
             createdPart,
           ],
         )
+
+        setToastMessage(
+          'Peça cadastrada com sucesso.',
+        )
       }
 
       setModalMode(null)
@@ -524,6 +543,11 @@ export function PartsPage() {
       replacePart(
         updatedPart,
       )
+
+      setToastMessage(
+        'Peça reativada com sucesso.',
+      )
+
     } catch (error) {
       setPageError(
         getPartErrorMessage(
@@ -572,6 +596,10 @@ export function PartsPage() {
 
       replacePart(
         updatedPart,
+      )
+
+      setToastMessage(
+        'Peça desativada com sucesso.',
       )
 
       setModalMode(null)
@@ -1041,6 +1069,17 @@ export function PartsPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {toastMessage && (
+          <Toast
+            message={toastMessage}
+            onClose={() => {
+              setToastMessage(
+                null,
+              )
+            }}
+          />
         )}
     </div>
   )

@@ -36,6 +36,10 @@ import {
   StatusBadge,
 } from '../ui/StatusBadge'
 import {
+  Toast,
+} from '../ui/Toast'
+
+import {
   SupplierContactForm,
 } from './SupplierContactForm'
 
@@ -111,6 +115,13 @@ export function SupplierContactsPanel({
   ] = useState<string | null>(
     null,
   )
+
+  const [
+  toastMessage,
+  setToastMessage,
+] = useState<string | null>(
+  null,
+)
 
   const [
     contactToDeactivate,
@@ -223,6 +234,10 @@ export function SupplierContactsPanel({
             )
 
         replaceContact(updated)
+
+        setToastMessage(
+          'Contato atualizado com sucesso.',
+        )
       } else {
         const created =
           await supplierContactService
@@ -248,6 +263,10 @@ export function SupplierContactsPanel({
               created,
             ]
           },
+        )
+
+        setToastMessage(
+          'Contato cadastrado com sucesso.',
         )
       }
 
@@ -278,6 +297,11 @@ export function SupplierContactsPanel({
           )
 
       replaceContact(updated)
+
+      setToastMessage(
+        'Contato reativado com sucesso.',
+      )
+
     } catch (error) {
       setPageError(
         getContactErrorMessage(
@@ -328,6 +352,10 @@ export function SupplierContactsPanel({
 
       replaceContact(updated)
 
+      setToastMessage(
+        'Contato desativado com sucesso.',
+      )
+
       setContactToDeactivate(
         null,
       )
@@ -365,9 +393,13 @@ export function SupplierContactsPanel({
             : 1
         }
 
-        return left.name.localeCompare(
-          right.name,
-          'pt-BR',
+        return (
+          new Date(
+            right.created_at,
+          ).getTime() -
+          new Date(
+            left.created_at,
+          ).getTime()
         )
       },
     )
@@ -801,6 +833,17 @@ export function SupplierContactsPanel({
           )}
         </div>
       </section>
+
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          onClose={() => {
+            setToastMessage(
+              null,
+            )
+          }}
+        />
+      )}
     </div>
   )
 }

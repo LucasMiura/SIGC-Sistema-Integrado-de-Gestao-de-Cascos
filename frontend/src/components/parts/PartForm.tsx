@@ -12,6 +12,9 @@ import {
 import {
   TextField,
 } from '../ui/TextField'
+import {
+  FeedbackMessage,
+} from '../ui/FeedbackMessage'
 
 import type {
   Part,
@@ -205,6 +208,15 @@ export function PartForm({
         </button>
       </header>
 
+      {errorMessage && (
+        <div className="part-form__feedback">
+          <FeedbackMessage
+            message={errorMessage}
+            tone="error"
+          />
+        </div>
+      )}
+
       <div className="part-form__body">
         <div className="part-form__fields">
           <label className="part-field">
@@ -353,15 +365,6 @@ export function PartForm({
             </p>
           </div>
         </div>
-
-        {errorMessage && (
-          <div
-            className="part-form__error"
-            role="alert"
-          >
-            {errorMessage}
-          </div>
-        )}
       </div>
 
       <footer className="part-form__actions">

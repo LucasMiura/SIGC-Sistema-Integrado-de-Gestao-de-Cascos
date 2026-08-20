@@ -16,6 +16,9 @@ import {
 import {
   TextField,
 } from '../ui/TextField'
+import {
+  FeedbackMessage,
+} from '../ui/FeedbackMessage'
 
 interface SupplierFormProps {
   supplier?: Supplier | null
@@ -157,6 +160,15 @@ export function SupplierForm({
         </button>
       </header>
 
+      {errorMessage && (
+        <div className="supplier-form__feedback">
+          <FeedbackMessage
+            message={errorMessage}
+            tone="error"
+          />
+        </div>
+      )}
+
       <div className="supplier-form__body">
         <div className="supplier-form__fields">
           <TextField
@@ -228,15 +240,6 @@ export function SupplierForm({
             />
           </label>
         </div>
-
-        {errorMessage && (
-          <div
-            className="supplier-form__error"
-            role="alert"
-          >
-            {errorMessage}
-          </div>
-        )}
       </div>
 
       <footer className="supplier-form__actions">

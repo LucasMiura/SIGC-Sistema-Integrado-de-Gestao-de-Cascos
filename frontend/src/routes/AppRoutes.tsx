@@ -16,6 +16,9 @@ import {
   PartsPage,
 } from '../pages/PartsPage'
 import {
+  PurchasesPage,
+} from '../pages/PurchasesPage'
+import {
   ModulePlaceholderPage,
 } from '../pages/ModulePlaceholderPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
@@ -71,10 +74,7 @@ export function AppRoutes() {
               <RoleProtectedRoute
                 permission="purchases"
               >
-                <ModulePlaceholderPage
-                  title="Compras"
-                  description="Gerencie as Notas Fiscais de compra e os itens com obrigação de devolução de casco."
-                />
+                <PurchasesPage />
               </RoleProtectedRoute>
             }
           />

@@ -32,6 +32,10 @@ import {
   StatusBadge,
 } from '../components/ui/StatusBadge'
 import {
+  Toast,
+} from '../components/ui/Toast'
+
+import {
   SupplierContactsPanel,
 } from '../components/suppliers/SupplierContactsPanel'
 import {
@@ -148,6 +152,13 @@ export function SuppliersPage() {
     deactivateJustification,
     setDeactivateJustification,
   ] = useState('')
+
+  const [
+    toastMessage,
+    setToastMessage,
+  ] = useState<string | null>(
+    null,
+  )
 
   function replaceSupplier(
     updatedSupplier: Supplier,
@@ -356,6 +367,11 @@ export function SuppliersPage() {
         replaceSupplier(
           updatedSupplier,
         )
+
+        setToastMessage(
+          'Fornecedor atualizado com sucesso.',
+        )
+
       } else {
         const createdSupplier =
           await supplierService
@@ -367,7 +383,12 @@ export function SuppliersPage() {
             createdSupplier,
           ],
         )
-      }
+
+        setToastMessage(
+          'Fornecedor cadastrado com sucesso.',
+        )
+        
+      }    
 
       setModalMode(null)
       setSelectedSupplier(null)
@@ -395,6 +416,11 @@ export function SuppliersPage() {
       replaceSupplier(
         updatedSupplier,
       )
+
+      setToastMessage(
+        'Fornecedor reativado com sucesso.',
+      )
+
     } catch (error) {
       setPageError(
         getSupplierErrorMessage(
@@ -443,6 +469,10 @@ export function SuppliersPage() {
 
       replaceSupplier(
         updatedSupplier,
+      )
+
+      setToastMessage(
+        'Fornecedor desativado com sucesso.',
       )
 
       setModalMode(null)
@@ -885,6 +915,18 @@ export function SuppliersPage() {
                 }}
             />
         )}
+
+        {toastMessage && (
+          <Toast
+            message={toastMessage}
+            onClose={() => {
+              setToastMessage(
+                null,
+              )
+            }}
+          />
+        )}
+
     </div>
   )
 }
