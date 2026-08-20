@@ -13,6 +13,9 @@ import {
   SuppliersPage,
 } from '../pages/SuppliersPage'
 import {
+  PartsPage,
+} from '../pages/PartsPage'
+import {
   ModulePlaceholderPage,
 } from '../pages/ModulePlaceholderPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
@@ -138,10 +141,7 @@ export function AppRoutes() {
               <RoleProtectedRoute
                 permission="parts"
               >
-                <ModulePlaceholderPage
-                  title="Peças"
-                  description="Mantenha o cadastro das peças sujeitas ao controle de casco."
-                />
+                <PartsPage />
               </RoleProtectedRoute>
             }
           />

@@ -46,7 +46,6 @@ import type {
 } from '../types/supplier'
 
 type SupplierStatusFilter =
-  | 'all'
   | 'active'
   | 'inactive'
 
@@ -115,7 +114,7 @@ export function SuppliersPage() {
     setStatusFilter,
   ] =
     useState<SupplierStatusFilter>(
-      'all',
+      'active',
     )
 
   const [
@@ -235,47 +234,49 @@ export function SuppliersPage() {
             searchValue,
           )
 
-        return suppliers.filter(
-          (supplier) => {
-            const matchesStatus =
-              statusFilter ===
-                'all' ||
-              (
+        return suppliers
+          .filter(
+            (supplier) => {
+              const matchesStatus =
                 statusFilter ===
-                  'active' &&
-                supplier.is_active
-              ) ||
-              (
-                statusFilter ===
-                  'inactive' &&
-                !supplier.is_active
+                  'active'
+                  ? supplier.is_active
+                  : !supplier.is_active
+
+              if (!matchesStatus) {
+                return false
+              }
+
+              if (!search) {
+                return true
+              }
+
+              const searchableValue =
+                [
+                  supplier.name,
+                  supplier.document ?? '',
+                  supplier.address ?? '',
+                ]
+                  .join(' ')
+                  .toLocaleLowerCase(
+                    'pt-BR',
+                  )
+
+              return (
+                searchableValue
+                  .includes(search)
               )
-
-            if (!matchesStatus) {
-              return false
-            }
-
-            if (!search) {
-              return true
-            }
-
-            const searchableValue =
-              [
-                supplier.name,
-                supplier.document ?? '',
-                supplier.address ?? '',
-              ]
-                .join(' ')
-                .toLocaleLowerCase(
-                  'pt-BR',
-                )
-
-            return (
-              searchableValue
-                .includes(search)
-            )
-          },
-        )
+            },
+          )
+          .sort(
+            (left, right) =>
+              new Date(
+                right.created_at,
+              ).getTime() -
+              new Date(
+                left.created_at,
+              ).getTime(),
+          )
       },
       [
         suppliers,
@@ -579,22 +580,6 @@ export function SuppliersPage() {
             <button
               type="button"
               className={
-                statusFilter === 'all'
-                  ? 'supplier-status-filter__button supplier-status-filter__button--active'
-                  : 'supplier-status-filter__button'
-              }
-              onClick={() => {
-                setStatusFilter(
-                  'all',
-                )
-              }}
-            >
-              Todos
-            </button>
-
-            <button
-              type="button"
-              className={
                 statusFilter === 'active'
                   ? 'supplier-status-filter__button supplier-status-filter__button--active'
                   : 'supplier-status-filter__button'
@@ -768,95 +753,105 @@ export function SuppliersPage() {
                   handleDeactivateSubmit
                 }
               >
-                <div className="supplier-deactivate__icon">
-                  <Building2
-                    size={24}
-                    strokeWidth={1.7}
-                  />
-                </div>
+                <header className="supplier-deactivate__header">
+                  <div>
+                    <span className="supplier-form__eyebrow">
+                      Desativação
+                    </span>
 
-                <header>
-                  <span>
-                    Desativação
-                  </span>
+                    <h2
+                      id="supplier-deactivate-title"
+                    >
+                      Desativar fornecedor
+                    </h2>
 
-                  <h2
-                    id="supplier-deactivate-title"
+                    <p>
+                      O fornecedor continuará preservado
+                      no histórico, mas deixará de ficar
+                      ativo para novas operações.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="supplier-form__close"
+                    aria-label="Fechar desativação"
+                    disabled={isSubmitting}
+                    onClick={closeModal}
                   >
-                    Desativar fornecedor
-                  </h2>
-
-                  <p>
-                    O fornecedor continuará
-                    preservado no histórico,
-                    mas deixará de ficar ativo
-                    para novas operações.
-                  </p>
+                    <X
+                      size={20}
+                      strokeWidth={1.8}
+                    />
+                  </button>
                 </header>
 
-                <div className="supplier-deactivate__supplier">
-                  <span>
-                    Fornecedor
-                  </span>
+                <div className="supplier-deactivate__body">
+                  <div className="supplier-deactivate__supplier">
+                    <div className="supplier-deactivate__icon">
+                      <Building2
+                        size={22}
+                        strokeWidth={1.7}
+                      />
+                    </div>
 
-                  <strong>
-                    {selectedSupplier.name}
-                  </strong>
-                </div>
+                    <div className="supplier-deactivate__identity">
+                      <strong>
+                        {selectedSupplier.name}
+                      </strong>
 
-                <label className="supplier-field">
-                  <span className="supplier-field__label">
-                    Justificativa
-                  </span>
-
-                  <textarea
-                    className="supplier-field__textarea"
-                    rows={4}
-                    maxLength={1000}
-                    required
-                    autoFocus
-                    disabled={
-                      isSubmitting
-                    }
-                    value={
-                      deactivateJustification
-                    }
-                    placeholder="Informe o motivo da desativação"
-                    onChange={(event) => {
-                      setDeactivateJustification(
-                        event.target.value,
-                      )
-                    }}
-                  />
-
-                  <span className="supplier-field__counter">
-                    {
-                      deactivateJustification
-                        .length
-                    }
-                    /1000
-                  </span>
-                </label>
-
-                {modalError && (
-                  <div
-                    className="supplier-form__error"
-                    role="alert"
-                  >
-                    {modalError}
+                      <span>
+                        {selectedSupplier.document ??
+                          `Fornecedor #${selectedSupplier.id}`}
+                      </span>
+                    </div>
                   </div>
-                )}
+
+                  <label className="supplier-field">
+                    <span className="supplier-field__label">
+                      Justificativa
+                    </span>
+
+                    <textarea
+                      className="supplier-field__textarea"
+                      rows={4}
+                      maxLength={1000}
+                      required
+                      autoFocus
+                      disabled={isSubmitting}
+                      value={
+                        deactivateJustification
+                      }
+                      placeholder="Informe o motivo da desativação"
+                      onChange={(event) => {
+                        setDeactivateJustification(
+                          event.target.value,
+                        )
+                      }}
+                    />
+
+                    <span className="supplier-field__counter">
+                      {deactivateJustification.length}
+                      /1000
+                    </span>
+                  </label>
+
+                  {modalError && (
+                    <div
+                      className="supplier-form__error"
+                      role="alert"
+                    >
+                      {modalError}
+                    </div>
+                  )}
+                </div>
 
                 <footer className="supplier-form__actions">
                   <Button
                     type="button"
                     variant="secondary"
-                    disabled={
-                      isSubmitting
-                    }
-                    onClick={
-                      closeModal
-                    }
+                    disabled={isSubmitting}
+                    onClick={closeModal}
                   >
                     Cancelar
                   </Button>
@@ -866,8 +861,7 @@ export function SuppliersPage() {
                     variant="danger"
                     disabled={
                       isSubmitting ||
-                      !deactivateJustification
-                        .trim()
+                      !deactivateJustification.trim()
                     }
                   >
                     {isSubmitting
