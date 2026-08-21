@@ -1,6 +1,7 @@
 from datetime import date
 
 from src.dtos.dashboard import (
+    DashboardStockPositionItemDTO,
     DashboardSummaryDTO,
 )
 from src.queries.dashboard_query import (
@@ -133,6 +134,46 @@ class DashboardService:
             ),
             date_from=normalized_date_from,
             date_to=normalized_date_to,
+        )
+
+    def get_stock_position(
+        self,
+        *,
+        supplier_id: int | None = None,
+        part_id: int | None = None,
+    ) -> tuple[
+        DashboardStockPositionItemDTO,
+        ...,
+    ]:
+        """
+        Retorna a posição consolidada
+        de estoque e cascos por peça.
+        """
+
+        if (
+            supplier_id is not None
+            and supplier_id <= 0
+        ):
+            raise ValueError(
+                "O identificador do fornecedor "
+                "deve ser maior que zero."
+            )
+
+        if (
+            part_id is not None
+            and part_id <= 0
+        ):
+            raise ValueError(
+                "O identificador da peça "
+                "deve ser maior que zero."
+            )
+
+        return (
+            self.query
+            .get_stock_position(
+                supplier_id=supplier_id,
+                part_id=part_id,
+            )
         )
 
     @staticmethod

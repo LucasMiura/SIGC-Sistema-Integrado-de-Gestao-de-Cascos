@@ -5,6 +5,30 @@ from dataclasses import dataclass
     frozen=True,
     slots=True,
 )
+class DashboardStockPositionItemDTO:
+    """
+    Posição consolidada de estoque e
+    cascos de uma peça.
+    """
+
+    part_id: int
+    part_code: str
+    part_name: str
+
+    stock_quantity: int
+
+    workshop_pending_quantity: int
+    customer_pending_quantity: int
+
+    workshop_returned_quantity: int
+    customer_returned_quantity: int
+
+    available_core_quantity: int
+
+@dataclass(
+    frozen=True,
+    slots=True,
+)
 class DashboardDeadlineIndicatorsDTO:
     """
     Quantidades pendentes classificadas

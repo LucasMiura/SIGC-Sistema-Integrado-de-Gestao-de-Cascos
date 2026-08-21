@@ -27,6 +27,22 @@ export interface DashboardTransferReturnIndicators {
   pending_quantity: number
 }
 
+export interface DashboardStockPositionItem {
+  part_id: number
+  part_code: string
+  part_name: string
+
+  stock_quantity: number
+
+  workshop_pending_quantity: number
+  customer_pending_quantity: number
+
+  workshop_returned_quantity: number
+  customer_returned_quantity: number
+
+  available_core_quantity: number
+}
+
 export interface DashboardSummary {
   total_origin_count: number
   total_available_quantity: number

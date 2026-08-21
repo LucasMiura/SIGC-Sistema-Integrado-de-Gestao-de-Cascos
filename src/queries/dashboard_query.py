@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from src.dtos.dashboard import (
     DashboardCustomerReturnIndicatorsDTO,
     DashboardDeadlineIndicatorsDTO,
+    DashboardStockPositionItemDTO,
     DashboardSummaryDTO,
     DashboardSupplierReturnIndicatorsDTO,
     DashboardTransferReturnIndicatorsDTO,
@@ -513,6 +514,424 @@ class DashboardQuery:
                 )
             ),
         )
+
+    def get_stock_position(
+        self,
+        *,
+        supplier_id: int | None = None,
+        part_id: int | None = None,
+    ) -> tuple[
+        DashboardStockPositionItemDTO,
+        ...,
+    ]:
+        """
+        Retorna a posição consolidada de
+        estoque e cascos por peça.
+        """
+
+        parts_statement = (
+            select(Part)
+            .order_by(
+                Part.name,
+                Part.part_code,
+            )
+        )
+
+        if supplier_id is not None:
+            parts_statement = (
+                parts_statement.where(
+                    Part.supplier_id
+                    == supplier_id
+                )
+            )
+
+        if part_id is not None:
+            parts_statement = (
+                parts_statement.where(
+                    Part.id == part_id
+                )
+            )
+
+        parts = list(
+            self.session.scalars(
+                parts_statement
+            ).all()
+        )
+
+        if not parts:
+            return ()
+
+        part_ids = [
+            part.id
+            for part in parts
+        ]
+
+        stock_by_part: dict[
+            int,
+            int,
+        ] = defaultdict(int)
+
+        workshop_outbound_by_part: dict[
+            int,
+            int,
+        ] = defaultdict(int)
+
+        sale_outbound_by_part: dict[
+            int,
+            int,
+        ] = defaultdict(int)
+
+        workshop_returned_by_part: dict[
+            int,
+            int,
+        ] = defaultdict(int)
+
+        sale_returned_by_part: dict[
+            int,
+            int,
+        ] = defaultdict(int)
+
+        available_core_by_part: dict[
+            int,
+            int,
+        ] = defaultdict(int)
+
+        purchase_rows = (
+            self._get_purchase_rows(
+                supplier_id=supplier_id,
+                part_id=part_id,
+                date_from=None,
+                date_to=None,
+            )
+        )
+
+        transfer_rows = (
+            self._get_transfer_rows(
+                supplier_id=supplier_id,
+                part_id=part_id,
+                date_from=None,
+                date_to=None,
+            )
+        )
+
+        for (
+            purchase_item,
+            _purchase,
+            part,
+            _supplier,
+        ) in purchase_rows:
+            stock_by_part[
+                part.id
+            ] += (
+                purchase_item
+                .quantity_available
+            )
+
+        for (
+            transfer_item,
+            _transfer,
+            part,
+        ) in transfer_rows:
+            stock_by_part[
+                part.id
+            ] += (
+                transfer_item
+                .quantity_available
+            )
+
+        outbound_rows_statement = (
+            select(
+                OutboundItem,
+                Outbound,
+            )
+            .join(
+                Outbound,
+                Outbound.id
+                == OutboundItem.outbound_id,
+            )
+            .where(
+                OutboundItem.part_id.in_(
+                    part_ids
+                ),
+                Outbound.status
+                != "CANCELLED",
+            )
+            .order_by(
+                OutboundItem.id
+            )
+        )
+
+        outbound_rows = list(
+            self.session.execute(
+                outbound_rows_statement
+            ).all()
+        )
+
+        outbound_item_ids: set[int] = set()
+
+        outbound_context: dict[
+            int,
+            tuple[
+                int,
+                str,
+            ],
+        ] = {}
+
+        for (
+            outbound_item,
+            outbound,
+        ) in outbound_rows:
+            outbound_item_ids.add(
+                outbound_item.id
+            )
+
+            outbound_context[
+                outbound_item.id
+            ] = (
+                outbound_item.part_id,
+                outbound.destination_type,
+            )
+
+            if (
+                outbound.destination_type
+                == "WORK_ORDER"
+            ):
+                workshop_outbound_by_part[
+                    outbound_item.part_id
+                ] += outbound_item.quantity
+
+            elif (
+                outbound.destination_type
+                == "SALE"
+            ):
+                sale_outbound_by_part[
+                    outbound_item.part_id
+                ] += outbound_item.quantity
+
+        returned_by_outbound = (
+            self
+            ._get_customer_return_quantities_by_outbound(
+                outbound_item_ids
+            )
+            if outbound_item_ids
+            else {}
+        )
+
+        for (
+            outbound_item_id,
+            returned_quantity,
+        ) in returned_by_outbound.items():
+            context = (
+                outbound_context.get(
+                    outbound_item_id
+                )
+            )
+
+            if context is None:
+                continue
+
+            (
+                returned_part_id,
+                destination_type,
+            ) = context
+
+            if (
+                destination_type
+                == "WORK_ORDER"
+            ):
+                workshop_returned_by_part[
+                    returned_part_id
+                ] += returned_quantity
+
+            elif (
+                destination_type
+                == "SALE"
+            ):
+                sale_returned_by_part[
+                    returned_part_id
+                ] += returned_quantity
+
+        purchase_item_ids = [
+            purchase_item.id
+            for (
+                purchase_item,
+                _purchase,
+                _part,
+                _supplier,
+            ) in purchase_rows
+        ]
+
+        transfer_item_ids = [
+            transfer_item.id
+            for (
+                transfer_item,
+                _transfer,
+                _part,
+            ) in transfer_rows
+        ]
+
+        (
+            _outbound_by_purchase,
+            _outbound_by_transfer,
+            returned_by_purchase,
+            returned_by_transfer,
+        ) = (
+            self
+            ._get_outbound_and_customer_return_quantities(
+                purchase_item_ids=(
+                    purchase_item_ids
+                ),
+                transfer_item_ids=(
+                    transfer_item_ids
+                ),
+            )
+        )
+
+        returned_to_supplier = (
+            self
+            ._get_supplier_return_quantities(
+                purchase_item_ids
+            )
+        )
+
+        returned_to_origin_branch = (
+            self
+            ._get_transfer_return_quantities(
+                transfer_item_ids
+            )
+        )
+
+        for (
+            purchase_item,
+            _purchase,
+            part,
+            _supplier,
+        ) in purchase_rows:
+            returned_quantity = (
+                returned_by_purchase.get(
+                    purchase_item.id,
+                    0,
+                )
+            )
+
+            final_return_quantity = (
+                returned_to_supplier.get(
+                    purchase_item.id,
+                    0,
+                )
+            )
+
+            available_core_by_part[
+                part.id
+            ] += max(
+                returned_quantity
+                - final_return_quantity,
+                0,
+            )
+
+        for (
+            transfer_item,
+            _transfer,
+            part,
+        ) in transfer_rows:
+            returned_quantity = (
+                returned_by_transfer.get(
+                    transfer_item.id,
+                    0,
+                )
+            )
+
+            final_return_quantity = (
+                returned_to_origin_branch.get(
+                    transfer_item.id,
+                    0,
+                )
+            )
+
+            available_core_by_part[
+                part.id
+            ] += max(
+                returned_quantity
+                - final_return_quantity,
+                0,
+            )
+
+        result: list[
+            DashboardStockPositionItemDTO
+        ] = []
+
+        for part in parts:
+            workshop_outbound = (
+                workshop_outbound_by_part.get(
+                    part.id,
+                    0,
+                )
+            )
+
+            sale_outbound = (
+                sale_outbound_by_part.get(
+                    part.id,
+                    0,
+                )
+            )
+
+            workshop_returned = (
+                workshop_returned_by_part.get(
+                    part.id,
+                    0,
+                )
+            )
+
+            sale_returned = (
+                sale_returned_by_part.get(
+                    part.id,
+                    0,
+                )
+            )
+
+            result.append(
+                DashboardStockPositionItemDTO(
+                    part_id=part.id,
+                    part_code=(
+                        part.part_code
+                    ),
+                    part_name=part.name,
+                    stock_quantity=(
+                        stock_by_part.get(
+                            part.id,
+                            0,
+                        )
+                    ),
+                    workshop_pending_quantity=(
+                        max(
+                            workshop_outbound
+                            - workshop_returned,
+                            0,
+                        )
+                    ),
+                    customer_pending_quantity=(
+                        max(
+                            sale_outbound
+                            - sale_returned,
+                            0,
+                        )
+                    ),
+                    workshop_returned_quantity=(
+                        workshop_returned
+                    ),
+                    customer_returned_quantity=(
+                        sale_returned
+                    ),
+                    available_core_quantity=(
+                        available_core_by_part.get(
+                            part.id,
+                            0,
+                        )
+                    ),
+                )
+            )
+
+        return tuple(result)
 
     def _get_purchase_rows(
         self,

@@ -15,6 +15,7 @@ from src.api.dependencies.authorization import (
 from src.database.connection import get_session
 from src.queries.dashboard_query import DashboardQuery
 from src.schemas.dashboard_schema import (
+    DashboardStockPositionItemResponse,
     DashboardSummaryResponse,
 )
 from src.services.dashboard_service import (
@@ -151,6 +152,67 @@ def get_dashboard_summary(
                 summary
             )
         )
+
+    except ValueError as error:
+        raise_dashboard_http_exception(
+            error
+        )
+
+
+@router.get(
+    "/stock-position",
+    response_model=list[
+        DashboardStockPositionItemResponse
+    ],
+    status_code=status.HTTP_200_OK,
+    summary=(
+        "Consultar posição de estoque "
+        "e cascos por peça"
+    ),
+)
+def get_dashboard_stock_position(
+    service: DashboardServiceDependency,
+    _current_user:
+        OperationalUserDependency,
+    supplier_id: int | None = Query(
+        default=None,
+        gt=0,
+        description=(
+            "Filtra por fornecedor"
+        ),
+    ),
+    part_id: int | None = Query(
+        default=None,
+        gt=0,
+        description=(
+            "Filtra por peça"
+        ),
+    ),
+) -> list[
+    DashboardStockPositionItemResponse
+]:
+    """
+    Retorna a posição atual de cada peça
+    entre estoque, oficina, clientes e
+    cascos já retornados.
+    """
+
+    try:
+        items = (
+            service
+            .get_stock_position(
+                supplier_id=(
+                    supplier_id
+                ),
+                part_id=part_id,
+            )
+        )
+
+        return [
+            DashboardStockPositionItemResponse
+            .from_dto(item)
+            for item in items
+        ]
 
     except ValueError as error:
         raise_dashboard_http_exception(

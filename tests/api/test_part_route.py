@@ -1659,7 +1659,7 @@ def test_should_return_401_without_authentication(
         app.dependency_overrides.clear()
 
 
-def test_should_return_403_when_seller_accesses_parts(
+def test_should_allow_seller_to_list_parts(
     service_mock: Mock,
     session_mock: Mock,
 ) -> None:
@@ -1674,6 +1674,12 @@ def test_should_return_403_when_seller_accesses_parts(
         id=3,
         name="Vendedor",
     )
+
+    part = create_part()
+
+    service_mock.list_all.return_value = [
+        part
+    ]
 
     def override_service() -> Mock:
         return service_mock
@@ -1706,17 +1712,80 @@ def test_should_return_403_when_seller_accesses_parts(
                 "/parts"
             )
 
-        assert response.status_code == 403
+        assert response.status_code == 200
 
-        assert response.json() == {
-            "detail": (
-                "O usuário autenticado não possui "
-                "permissão para realizar esta "
-                "operação."
-            ),
-        }
+        assert response.json() == [
+            expected_part_json()
+        ]
 
-        service_mock.list_all.assert_not_called()
+        service_mock.list_all.assert_called_once_with()
+
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_should_allow_seller_to_get_part(
+    service_mock: Mock,
+    session_mock: Mock,
+) -> None:
+    seller_user = SimpleNamespace(
+        id=3,
+        username="vendedor",
+        role_id=3,
+        is_active=1,
+    )
+
+    seller_role = SimpleNamespace(
+        id=3,
+        name="Vendedor",
+    )
+
+    part = create_part()
+
+    service_mock.get_required.return_value = (
+        part
+    )
+
+    def override_service() -> Mock:
+        return service_mock
+
+    def override_session():
+        yield session_mock
+
+    def override_get_current_user():
+        return seller_user
+
+    session_mock.scalar.return_value = (
+        seller_role
+    )
+
+    app.dependency_overrides[
+        get_part_service
+    ] = override_service
+
+    app.dependency_overrides[
+        get_session
+    ] = override_session
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/parts/10"
+            )
+
+        assert response.status_code == 200
+
+        assert response.json() == (
+            expected_part_json()
+        )
+
+        service_mock.get_required.assert_called_once_with(
+            10
+        )
 
     finally:
         app.dependency_overrides.clear()

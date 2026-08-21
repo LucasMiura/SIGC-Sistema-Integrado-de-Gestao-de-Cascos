@@ -1,5 +1,6 @@
 import { httpClient } from './httpClient'
 import type {
+  DashboardStockPositionItem,
   DashboardSummary,
 } from '../types/dashboard'
 
@@ -82,6 +83,16 @@ export const dashboardService = {
       buildDashboardQuery(
         filters,
       ),
+    )
+  },
+
+  getStockPosition(): Promise<
+    DashboardStockPositionItem[]
+  > {
+    return httpClient.get<
+      DashboardStockPositionItem[]
+    >(
+      '/dashboard/stock-position',
     )
   },
 }

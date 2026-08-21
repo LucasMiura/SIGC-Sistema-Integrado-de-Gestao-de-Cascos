@@ -491,3 +491,201 @@ def test_should_exclude_origin_when_deadline_filter_does_not_match(
         result.deadline.urgent_quantity
         == 0
     )
+
+
+def test_should_build_stock_position_by_part(
+    query: DashboardQuery,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    part = SimpleNamespace(
+        id=20,
+        supplier_id=5,
+        part_code="ABC123",
+        name="Compressor de ar",
+    )
+
+    purchase_item = SimpleNamespace(
+        id=10,
+        quantity_available=4,
+    )
+
+    purchase = SimpleNamespace(
+        id=1,
+    )
+
+    supplier = SimpleNamespace(
+        id=5,
+    )
+
+    transfer_item = SimpleNamespace(
+        id=30,
+        quantity_available=2,
+    )
+
+    transfer = SimpleNamespace(
+        id=2,
+    )
+
+    workshop_item = SimpleNamespace(
+        id=100,
+        part_id=20,
+        quantity=5,
+    )
+
+    workshop_outbound = (
+        SimpleNamespace(
+            id=50,
+            destination_type=(
+                "WORK_ORDER"
+            ),
+        )
+    )
+
+    sale_item = SimpleNamespace(
+        id=101,
+        part_id=20,
+        quantity=4,
+    )
+
+    sale_outbound = (
+        SimpleNamespace(
+            id=51,
+            destination_type="SALE",
+        )
+    )
+
+    query.session.scalars.return_value.all.return_value = [
+        part
+    ]
+
+    query.session.execute.return_value.all.return_value = [
+        (
+            workshop_item,
+            workshop_outbound,
+        ),
+        (
+            sale_item,
+            sale_outbound,
+        ),
+    ]
+
+    monkeypatch.setattr(
+        query,
+        "_get_purchase_rows",
+        Mock(
+            return_value=[
+                (
+                    purchase_item,
+                    purchase,
+                    part,
+                    supplier,
+                )
+            ]
+        ),
+    )
+
+    monkeypatch.setattr(
+        query,
+        "_get_transfer_rows",
+        Mock(
+            return_value=[
+                (
+                    transfer_item,
+                    transfer,
+                    part,
+                )
+            ]
+        ),
+    )
+
+    monkeypatch.setattr(
+        query,
+        (
+            "_get_customer_return_"
+            "quantities_by_outbound"
+        ),
+        Mock(
+            return_value={
+                100: 2,
+                101: 1,
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        query,
+        (
+            "_get_outbound_and_"
+            "customer_return_quantities"
+        ),
+        Mock(
+            return_value=(
+                {},
+                {},
+                {
+                    10: 2,
+                },
+                {
+                    30: 1,
+                },
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        query,
+        "_get_supplier_return_quantities",
+        Mock(
+            return_value={
+                10: 1,
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        query,
+        "_get_transfer_return_quantities",
+        Mock(
+            return_value={
+                30: 0,
+            }
+        ),
+    )
+
+    result = (
+        query.get_stock_position()
+    )
+
+    assert len(result) == 1
+
+    item = result[0]
+
+    assert item.part_id == 20
+    assert item.part_code == "ABC123"
+
+    assert item.stock_quantity == 6
+
+    assert (
+        item.workshop_pending_quantity
+        == 3
+    )
+
+    assert (
+        item.customer_pending_quantity
+        == 3
+    )
+
+    assert (
+        item.workshop_returned_quantity
+        == 2
+    )
+
+    assert (
+        item.customer_returned_quantity
+        == 1
+    )
+
+    assert (
+        item.available_core_quantity
+        == 2
+    )

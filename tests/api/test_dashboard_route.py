@@ -22,6 +22,7 @@ from src.database.connection import (
 from src.dtos.dashboard import (
     DashboardCustomerReturnIndicatorsDTO,
     DashboardDeadlineIndicatorsDTO,
+    DashboardStockPositionItemDTO,
     DashboardSummaryDTO,
     DashboardSupplierReturnIndicatorsDTO,
     DashboardTransferReturnIndicatorsDTO,
@@ -146,6 +147,25 @@ def create_summary_dto() -> DashboardSummaryDTO:
                 returned_quantity=6,
                 pending_quantity=8,
             )
+        ),
+    )
+
+
+def create_stock_position_dto() -> tuple[
+    DashboardStockPositionItemDTO,
+    ...,
+]:
+    return (
+        DashboardStockPositionItemDTO(
+            part_id=10,
+            part_code="ABC123",
+            part_name="Compressor de ar",
+            stock_quantity=8,
+            workshop_pending_quantity=3,
+            customer_pending_quantity=2,
+            workshop_returned_quantity=1,
+            customer_returned_quantity=2,
+            available_core_quantity=3,
         ),
     )
 
@@ -400,3 +420,61 @@ def test_should_return_403_for_unauthorized_role(
     }
 
     service.get_summary.assert_not_called()
+
+
+def test_should_return_dashboard_stock_position(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    service.get_stock_position.return_value = (
+        create_stock_position_dto()
+    )
+
+    response = client.get(
+        "/dashboard/stock-position"
+    )
+
+    assert response.status_code == 200
+
+    assert response.json() == [
+        {
+            "part_id": 10,
+            "part_code": "ABC123",
+            "part_name": "Compressor de ar",
+            "stock_quantity": 8,
+            "workshop_pending_quantity": 3,
+            "customer_pending_quantity": 2,
+            "workshop_returned_quantity": 1,
+            "customer_returned_quantity": 2,
+            "available_core_quantity": 3,
+        }
+    ]
+
+    service.get_stock_position.assert_called_once_with(
+        supplier_id=None,
+        part_id=None,
+    )
+
+
+def test_should_send_stock_position_filters_to_service(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    service.get_stock_position.return_value = (
+        ()
+    )
+
+    response = client.get(
+        "/dashboard/stock-position",
+        params={
+            "supplier_id": 5,
+            "part_id": 10,
+        },
+    )
+
+    assert response.status_code == 200
+
+    service.get_stock_position.assert_called_once_with(
+        supplier_id=5,
+        part_id=10,
+    )

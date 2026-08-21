@@ -5,6 +5,7 @@ import pytest
 from src.dtos.dashboard import (
     DashboardCustomerReturnIndicatorsDTO,
     DashboardDeadlineIndicatorsDTO,
+    DashboardStockPositionItemDTO,
     DashboardSummaryDTO,
     DashboardSupplierReturnIndicatorsDTO,
     DashboardTransferReturnIndicatorsDTO,
@@ -323,3 +324,92 @@ def test_should_convert_blank_optional_filters_to_none() -> None:
         date_from=None,
         date_to=None,
     )
+
+def test_should_return_stock_position() -> None:
+    query = Mock(
+        spec=DashboardQuery
+    )
+
+    expected = (
+        DashboardStockPositionItemDTO(
+            part_id=10,
+            part_code="ABC123",
+            part_name="Compressor",
+            stock_quantity=8,
+            workshop_pending_quantity=3,
+            customer_pending_quantity=2,
+            workshop_returned_quantity=1,
+            customer_returned_quantity=2,
+            available_core_quantity=3,
+        ),
+    )
+
+    query.get_stock_position.return_value = (
+        expected
+    )
+
+    service = DashboardService(
+        query
+    )
+
+    result = (
+        service
+        .get_stock_position()
+    )
+
+    assert result == expected
+
+    query.get_stock_position.assert_called_once_with(
+        supplier_id=None,
+        part_id=None,
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "supplier_id",
+        "part_id",
+        "expected_message",
+    ),
+    [
+        (
+            0,
+            None,
+            (
+                "O identificador do fornecedor "
+                "deve ser maior que zero."
+            ),
+        ),
+        (
+            None,
+            0,
+            (
+                "O identificador da peça "
+                "deve ser maior que zero."
+            ),
+        ),
+    ],
+)
+def test_should_reject_invalid_stock_position_identifiers(
+    supplier_id: int | None,
+    part_id: int | None,
+    expected_message: str,
+) -> None:
+    query = Mock(
+        spec=DashboardQuery
+    )
+
+    service = DashboardService(
+        query
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=expected_message,
+    ):
+        service.get_stock_position(
+            supplier_id=supplier_id,
+            part_id=part_id,
+        )
+
+    query.get_stock_position.assert_not_called()

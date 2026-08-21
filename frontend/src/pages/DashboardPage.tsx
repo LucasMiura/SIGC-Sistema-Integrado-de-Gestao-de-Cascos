@@ -7,11 +7,13 @@ import {
   PackageCheck,
   RefreshCcw,
   RotateCcw,
+  Search,
   Truck,
   Warehouse,
 } from 'lucide-react'
 import {
   useEffect,
+  useMemo,
   useState,
 } from 'react'
 import {
@@ -42,6 +44,7 @@ import {
   ApiError,
 } from '../services/httpClient'
 import type {
+  DashboardStockPositionItem,
   DashboardSummary,
 } from '../types/dashboard'
 
@@ -93,6 +96,18 @@ export function DashboardPage() {
   >(null)
 
   const [
+    stockPosition,
+    setStockPosition,
+  ] = useState<
+    DashboardStockPositionItem[]
+  >([])
+
+  const [
+    stockSearch,
+    setStockSearch,
+  ] = useState('')
+
+  const [
     isLoading,
     setIsLoading,
   ] = useState(true)
@@ -121,13 +136,27 @@ export function DashboardPage() {
     setErrorMessage(null)
 
     try {
-      const data =
-        await dashboardService
-          .getSummary()
+      const [
+        summaryData,
+        stockPositionData,
+      ] = await Promise.all([
+        dashboardService
+          .getSummary(),
 
-      setSummary(data)
+        dashboardService
+          .getStockPosition(),
+      ])
+
+      setSummary(
+        summaryData,
+      )
+
+      setStockPosition(
+        stockPositionData,
+      )
     } catch (error) {
       setSummary(null)
+      setStockPosition([])
 
       setErrorMessage(
         getDashboardErrorMessage(
@@ -143,29 +172,49 @@ export function DashboardPage() {
     () => {
       let ignore = false
 
-      dashboardService
-        .getSummary()
-        .then((data) => {
-          if (ignore) {
-            return
-          }
+      Promise.all([
+        dashboardService
+          .getSummary(),
 
-          setSummary(data)
-          setErrorMessage(null)
-        })
-        .catch((error: unknown) => {
-          if (ignore) {
-            return
-          }
+        dashboardService
+          .getStockPosition(),
+      ])
+        .then(
+          ([
+            summaryData,
+            stockPositionData,
+          ]) => {
+            if (ignore) {
+              return
+            }
 
-          setSummary(null)
+            setSummary(
+              summaryData,
+            )
 
-          setErrorMessage(
-            getDashboardErrorMessage(
-              error,
-            ),
-          )
-        })
+            setStockPosition(
+              stockPositionData,
+            )
+
+            setErrorMessage(null)
+          },
+        )
+        .catch(
+          (error: unknown) => {
+            if (ignore) {
+              return
+            }
+
+            setSummary(null)
+            setStockPosition([])
+
+            setErrorMessage(
+              getDashboardErrorMessage(
+                error,
+              ),
+            )
+          },
+        )
         .finally(() => {
           if (ignore) {
             return
@@ -180,6 +229,56 @@ export function DashboardPage() {
     },
     [],
   )
+
+  const filteredStockPosition =
+    useMemo(
+      () => {
+        const normalizedSearch =
+          stockSearch
+            .trim()
+            .toLocaleLowerCase(
+              'pt-BR',
+            )
+
+        const sorted =
+          [...stockPosition].sort(
+            (left, right) =>
+              left.part_name.localeCompare(
+                right.part_name,
+                'pt-BR',
+                {
+                  sensitivity: 'base',
+                },
+              ),
+          )
+
+        if (!normalizedSearch) {
+          return sorted
+        }
+
+        return sorted.filter(
+          (item) => {
+            const searchable =
+              [
+                item.part_name,
+                item.part_code,
+              ]
+                .join(' ')
+                .toLocaleLowerCase(
+                  'pt-BR',
+                )
+
+            return searchable.includes(
+              normalizedSearch,
+            )
+          },
+        )
+      },
+      [
+        stockPosition,
+        stockSearch,
+      ],
+    )
 
   if (isLoading) {
     return (
@@ -440,6 +539,229 @@ export function DashboardPage() {
               atualmente atrasada.
             </p>
           </div>
+        </Card>
+      </section>
+
+      <section className="dashboard-section">
+        <div className="dashboard-section__heading">
+          <div>
+            <span>
+              Posição operacional
+            </span>
+
+            <h2>
+              Estoque e cascos
+            </h2>
+          </div>
+
+          <p>
+            Consulte onde estão as peças
+            e os cascos de cada código
+            cadastrado.
+          </p>
+        </div>
+
+        <Card
+          className="dashboard-stock-position"
+          padding="none"
+        >
+          <div className="dashboard-stock-position__toolbar">
+            <div className="dashboard-stock-search">
+              <Search
+                size={18}
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+
+              <input
+                type="search"
+                value={stockSearch}
+                placeholder="Buscar peça ou código"
+                aria-label="Buscar posição de estoque"
+                onChange={(event) => {
+                  setStockSearch(
+                    event.target.value,
+                  )
+                }}
+              />
+            </div>
+
+            <span className="dashboard-stock-position__count">
+              {filteredStockPosition.length}
+              {' '}
+              {filteredStockPosition.length ===
+              1
+                ? 'peça encontrada'
+                : 'peças encontradas'}
+            </span>
+          </div>
+
+          {filteredStockPosition.length ===
+          0 ? (
+            <div className="dashboard-stock-empty">
+              <div className="dashboard-stock-empty__icon">
+                <Boxes
+                  size={22}
+                  strokeWidth={1.7}
+                />
+              </div>
+
+              <strong>
+                Nenhuma peça encontrada
+              </strong>
+
+              <p>
+                Não existem peças que
+                correspondam à pesquisa
+                informada.
+              </p>
+            </div>
+          ) : (
+            <div className="dashboard-stock-table-wrapper">
+              <table className="dashboard-stock-table">
+                <thead>
+                  <tr>
+                    <th>
+                      Peça
+                    </th>
+
+                    <th>
+                      Código
+                    </th>
+
+                    <th className="dashboard-stock-table__number">
+                      Em estoque
+                    </th>
+
+                    <th className="dashboard-stock-table__number">
+                      Na oficina
+                    </th>
+
+                    <th className="dashboard-stock-table__number">
+                      Com clientes
+                    </th>
+
+                    <th
+                      className="dashboard-stock-table__number"
+                      title="Cascos retornados da oficina"
+                    >
+                      Ret. oficina
+                    </th>
+
+                    <th
+                      className="dashboard-stock-table__number"
+                      title="Cascos retornados do balcão"
+                    >
+                      Ret. balcão
+                    </th>
+
+                    <th
+                      className="dashboard-stock-table__number"
+                      title="Cascos disponíveis para devolução"
+                    >
+                      Disponíveis
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredStockPosition.map(
+                    (item) => (
+                      <tr
+                        key={
+                          item.part_id
+                        }
+                      >
+                        <td>
+                          <div className="dashboard-stock-table__part">
+                            <div className="dashboard-stock-table__part-icon">
+                              <Boxes
+                                size={17}
+                                strokeWidth={1.8}
+                              />
+                            </div>
+
+                            <strong>
+                              {
+                                item.part_name
+                              }
+                            </strong>
+                          </div>
+                        </td>
+
+                        <td>
+                          <span className="dashboard-stock-table__code">
+                            {
+                              item.part_code
+                            }
+                          </span>
+                        </td>
+
+                        <td className="dashboard-stock-table__number">
+                          <strong>
+                            {formatQuantity(
+                              item
+                                .stock_quantity,
+                            )}
+                          </strong>
+                        </td>
+
+                        <td className="dashboard-stock-table__number">
+                          {formatQuantity(
+                            item
+                              .workshop_pending_quantity,
+                          )}
+                        </td>
+
+                        <td className="dashboard-stock-table__number">
+                          {formatQuantity(
+                            item
+                              .customer_pending_quantity,
+                          )}
+                        </td>
+
+                        <td className="dashboard-stock-table__number">
+                          {formatQuantity(
+                            item
+                              .workshop_returned_quantity,
+                          )}
+                        </td>
+
+                        <td className="dashboard-stock-table__number">
+                          {formatQuantity(
+                            item
+                              .customer_returned_quantity,
+                          )}
+                        </td>
+
+                        <td className="dashboard-stock-table__number">
+                          <span
+                            className={[
+                              'dashboard-stock-table__available',
+                              item
+                                .available_core_quantity >
+                              0
+                                ? 'dashboard-stock-table__available--positive'
+                                : '',
+                            ]
+                              .filter(
+                                Boolean,
+                              )
+                              .join(' ')}
+                          >
+                            {formatQuantity(
+                              item
+                                .available_core_quantity,
+                            )}
+                          </span>
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </section>
 

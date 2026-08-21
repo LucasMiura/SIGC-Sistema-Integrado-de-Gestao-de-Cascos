@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from src.api.dependencies.authorization import (
     AdminOrBuyerUserDependency,
+    OperationalUserDependency,
 )
 from src.api.dependencies.audit import (
     AuditServiceDependency,
@@ -197,7 +198,7 @@ def create_part(
 )
 def list_parts(
     service: PartServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    _current_user: OperationalUserDependency,
     supplier_id: int | None = Query(
         default=None,
         gt=0,
@@ -242,7 +243,7 @@ def list_parts(
 )
 def get_part(
     service: PartServiceDependency,
-    _current_user: AdminOrBuyerUserDependency,
+    _current_user: OperationalUserDependency,
     part_id: int = Path(
         ...,
         gt=0,

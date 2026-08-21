@@ -4,6 +4,7 @@ from pydantic import (
 )
 
 from src.dtos.dashboard import (
+    DashboardStockPositionItemDTO,
     DashboardSummaryDTO,
 )
 
@@ -80,6 +81,69 @@ class DashboardTransferReturnIndicatorsResponse(
     returned_quantity: int
     pending_quantity: int
 
+
+class DashboardStockPositionItemResponse(
+    BaseModel
+):
+    """
+    Posição consolidada de estoque e
+    cascos por peça.
+    """
+
+    model_config = ConfigDict(
+        frozen=True
+    )
+
+    part_id: int
+    part_code: str
+    part_name: str
+
+    stock_quantity: int
+
+    workshop_pending_quantity: int
+    customer_pending_quantity: int
+
+    workshop_returned_quantity: int
+    customer_returned_quantity: int
+
+    available_core_quantity: int
+
+    @classmethod
+    def from_dto(
+        cls,
+        dto:
+            DashboardStockPositionItemDTO,
+    ) -> (
+        "DashboardStockPositionItemResponse"
+    ):
+        return cls(
+            part_id=dto.part_id,
+            part_code=dto.part_code,
+            part_name=dto.part_name,
+            stock_quantity=(
+                dto.stock_quantity
+            ),
+            workshop_pending_quantity=(
+                dto
+                .workshop_pending_quantity
+            ),
+            customer_pending_quantity=(
+                dto
+                .customer_pending_quantity
+            ),
+            workshop_returned_quantity=(
+                dto
+                .workshop_returned_quantity
+            ),
+            customer_returned_quantity=(
+                dto
+                .customer_returned_quantity
+            ),
+            available_core_quantity=(
+                dto
+                .available_core_quantity
+            ),
+        )
 
 class DashboardSummaryResponse(
     BaseModel

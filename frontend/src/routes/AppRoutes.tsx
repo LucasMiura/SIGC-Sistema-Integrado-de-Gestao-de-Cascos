@@ -22,6 +22,9 @@ import {
   ModulePlaceholderPage,
 } from '../pages/ModulePlaceholderPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import {
+  OutboundsPage,
+} from '../pages/OutboundsPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PublicOnlyRoute } from './PublicOnlyRoute'
 import {
@@ -85,10 +88,7 @@ export function AppRoutes() {
               <RoleProtectedRoute
                 permission="outbounds"
               >
-                <ModulePlaceholderPage
-                  title="Saídas"
-                  description="Registre movimentações para oficina e balcão mantendo a rastreabilidade de origem."
-                />
+                <OutboundsPage />
               </RoleProtectedRoute>
             }
           />
