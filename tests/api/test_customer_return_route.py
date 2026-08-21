@@ -26,6 +26,10 @@ from src.api.dependencies.audit import (
 from src.services.audit_service import (
     AuditService,
 )
+from src.dtos.customer_return import (
+    CustomerReturnOriginDTO,
+    CustomerReturnOriginItemDTO,
+)
 
 @pytest.fixture
 def session() -> Mock:
@@ -181,6 +185,29 @@ def create_customer_return_item(
         part_id=part_id,
         quantity=quantity,
         created_at=created_at,
+    )
+
+
+def create_return_origin_dto(
+) -> CustomerReturnOriginDTO:
+    return CustomerReturnOriginDTO(
+        outbound_id=50,
+        return_type="WORK_ORDER",
+        reference_number="OS-12345",
+        customer_name="Cliente Teste",
+        items=(
+            CustomerReturnOriginItemDTO(
+                part_id=40,
+                part_code="2R0198133AX",
+                part_name="Compressor de ar",
+                outbound_quantity=5,
+                returned_quantity=2,
+                pending_quantity=3,
+            ),
+        ),
+        total_outbound_quantity=5,
+        total_returned_quantity=2,
+        total_pending_quantity=3,
     )
 
 
@@ -1293,3 +1320,99 @@ def test_should_allow_buyer_to_list_customer_returns(
     assert response.status_code == 200
 
     service.list_customer_returns.assert_called_once_with()
+
+def test_should_return_customer_return_origin(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    service.get_return_origin.return_value = (
+        create_return_origin_dto()
+    )
+
+    response = client.get(
+        "/customer-returns/origin",
+        params={
+            "return_type":
+                "WORK_ORDER",
+            "reference_number":
+                "OS-12345",
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "outbound_id": 50,
+        "return_type": "WORK_ORDER",
+        "reference_number":
+            "OS-12345",
+        "customer_name":
+            "Cliente Teste",
+        "items": [
+            {
+                "part_id": 40,
+                "part_code":
+                    "2R0198133AX",
+                "part_name":
+                    "Compressor de ar",
+                "outbound_quantity": 5,
+                "returned_quantity": 2,
+                "pending_quantity": 3,
+            }
+        ],
+        "total_outbound_quantity": 5,
+        "total_returned_quantity": 2,
+        "total_pending_quantity": 3,
+    }
+
+    service.get_return_origin.assert_called_once_with(
+        return_type="WORK_ORDER",
+        reference_number="OS-12345",
+    )
+
+
+def test_should_return_404_when_return_origin_does_not_exist(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    service.get_return_origin.side_effect = (
+        ValueError(
+            "Saída original não encontrada."
+        )
+    )
+
+    response = client.get(
+        "/customer-returns/origin",
+        params={
+            "return_type":
+                "WORK_ORDER",
+            "reference_number":
+                "OS-INEXISTENTE",
+        },
+    )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail":
+            "Saída original não encontrada."
+    }
+
+
+def test_should_return_422_for_invalid_return_origin_type(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    response = client.get(
+        "/customer-returns/origin",
+        params={
+            "return_type":
+                "INVALID",
+            "reference_number":
+                "OS-12345",
+        },
+    )
+
+    assert response.status_code == 422
+
+    service.get_return_origin.assert_not_called()

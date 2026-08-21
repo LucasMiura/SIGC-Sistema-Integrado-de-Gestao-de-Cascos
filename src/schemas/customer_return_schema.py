@@ -6,6 +6,10 @@ from pydantic import (
     Field,
 )
 
+from src.dtos.customer_return import (
+    CustomerReturnOriginDTO,
+    CustomerReturnOriginItemDTO,
+)
 
 class CustomerReturnType(StrEnum):
     WORK_ORDER = "WORK_ORDER"
@@ -16,6 +20,106 @@ class CustomerReturnStatus(StrEnum):
     ACTIVE = "ACTIVE"
     CANCELLED = "CANCELLED"
 
+
+class CustomerReturnOriginItemResponse(
+    BaseModel
+):
+    model_config = ConfigDict(
+        frozen=True
+    )
+
+    part_id: int
+    part_code: str
+    part_name: str
+
+    outbound_quantity: int
+    returned_quantity: int
+    pending_quantity: int
+
+    @classmethod
+    def from_dto(
+        cls,
+        dto:
+            CustomerReturnOriginItemDTO,
+    ) -> (
+        "CustomerReturnOriginItemResponse"
+    ):
+        return cls(
+            part_id=dto.part_id,
+            part_code=dto.part_code,
+            part_name=dto.part_name,
+            outbound_quantity=(
+                dto.outbound_quantity
+            ),
+            returned_quantity=(
+                dto.returned_quantity
+            ),
+            pending_quantity=(
+                dto.pending_quantity
+            ),
+        )
+
+
+class CustomerReturnOriginResponse(
+    BaseModel
+):
+    model_config = ConfigDict(
+        frozen=True
+    )
+
+    outbound_id: int
+
+    return_type: CustomerReturnType
+    reference_number: str
+    customer_name: str
+
+    items: list[
+        CustomerReturnOriginItemResponse
+    ]
+
+    total_outbound_quantity: int
+    total_returned_quantity: int
+    total_pending_quantity: int
+
+    @classmethod
+    def from_dto(
+        cls,
+        dto:
+            CustomerReturnOriginDTO,
+    ) -> (
+        "CustomerReturnOriginResponse"
+    ):
+        return cls(
+            outbound_id=(
+                dto.outbound_id
+            ),
+            return_type=(
+                dto.return_type
+            ),
+            reference_number=(
+                dto.reference_number
+            ),
+            customer_name=(
+                dto.customer_name
+            ),
+            items=[
+                CustomerReturnOriginItemResponse
+                .from_dto(item)
+                for item in dto.items
+            ],
+            total_outbound_quantity=(
+                dto
+                .total_outbound_quantity
+            ),
+            total_returned_quantity=(
+                dto
+                .total_returned_quantity
+            ),
+            total_pending_quantity=(
+                dto
+                .total_pending_quantity
+            ),
+        )
 
 class CustomerReturnCreateRequest(BaseModel):
     """Dados necessários para registrar uma devolução."""

@@ -1,3 +1,7 @@
+from src.dtos.customer_return import (
+    CustomerReturnOriginDTO,
+    CustomerReturnOriginItemDTO,
+)
 from src.models.customer_return import CustomerReturn
 from src.models.customer_return_allocation import (
     CustomerReturnAllocation,
@@ -358,6 +362,145 @@ class CustomerReturnService:
             )
 
         return customer_return
+
+    def get_return_origin(
+        self,
+        return_type: str,
+        reference_number: str,
+    ) -> CustomerReturnOriginDTO:
+        """
+        Retorna os dados da saída original e
+        o saldo pendente de devolução por peça.
+        """
+
+        normalized_return_type = (
+            self._normalize_required_text(
+                return_type,
+                "O tipo de devolução é obrigatório.",
+            ).upper()
+        )
+
+        normalized_reference_number = (
+            self._normalize_required_text(
+                reference_number,
+                "O número de referência é obrigatório.",
+            )
+        )
+
+        if (
+            normalized_return_type
+            not in self.ALLOWED_RETURN_TYPES
+        ):
+            raise ValueError(
+                "O tipo de devolução deve ser "
+                "WORK_ORDER ou SALE."
+            )
+
+        outbound = (
+            self._get_original_outbound_by_reference(
+                normalized_return_type,
+                normalized_reference_number,
+            )
+        )
+
+        outbound_items = (
+            self.outbound_item_repository
+            .list_by_outbound(
+                outbound.id
+            )
+        )
+
+        items: list[
+            CustomerReturnOriginItemDTO
+        ] = []
+
+        total_outbound_quantity = 0
+        total_returned_quantity = 0
+        total_pending_quantity = 0
+
+        for outbound_item in outbound_items:
+            allocations = (
+                self
+                .customer_return_allocation_repository
+                .list_by_outbound_item(
+                    outbound_item.id
+                )
+            )
+
+            returned_quantity = sum(
+                allocation.quantity_allocated
+                for allocation in allocations
+            )
+
+            pending_quantity = max(
+                outbound_item.quantity
+                - returned_quantity,
+                0,
+            )
+
+            part = (
+                self.part_repository
+                .get_by_id(
+                    outbound_item.part_id
+                )
+            )
+
+            if part is None:
+                raise ValueError(
+                    "Peça não encontrada."
+                )
+
+            total_outbound_quantity += (
+                outbound_item.quantity
+            )
+
+            total_returned_quantity += (
+                returned_quantity
+            )
+
+            total_pending_quantity += (
+                pending_quantity
+            )
+
+            items.append(
+                CustomerReturnOriginItemDTO(
+                    part_id=part.id,
+                    part_code=part.part_code,
+                    part_name=part.name,
+                    outbound_quantity=(
+                        outbound_item.quantity
+                    ),
+                    returned_quantity=(
+                        returned_quantity
+                    ),
+                    pending_quantity=(
+                        pending_quantity
+                    ),
+                )
+            )
+
+        return CustomerReturnOriginDTO(
+            outbound_id=outbound.id,
+            return_type=(
+                normalized_return_type
+            ),
+            reference_number=(
+                normalized_reference_number
+            ),
+            customer_name=(
+                outbound.customer_name
+            ),
+            items=tuple(items),
+            total_outbound_quantity=(
+                total_outbound_quantity
+            ),
+            total_returned_quantity=(
+                total_returned_quantity
+            ),
+            total_pending_quantity=(
+                total_pending_quantity
+            ),
+        )
 
     def cancel_customer_return(
         self,

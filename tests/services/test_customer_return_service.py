@@ -190,6 +190,7 @@ def create_outbound(
     destination_type: str = "WORK_ORDER",
     work_order_number: str | None = "OS-100",
     sales_invoice_number: str | None = None,
+    customer_name: str = "Cliente Teste",
     status: str = "ACTIVE",
 ) -> SimpleNamespace:
     """Cria uma saída simplificada para os testes."""
@@ -199,6 +200,7 @@ def create_outbound(
         destination_type=destination_type,
         work_order_number=work_order_number,
         sales_invoice_number=sales_invoice_number,
+        customer_name=customer_name,
         status=status,
     )
 
@@ -1293,3 +1295,190 @@ def test_should_block_cancel_when_transfer_return_exists(
         )
 
     customer_return_repository.save.assert_not_called()
+
+
+def test_should_return_work_order_origin_with_pending_items(
+    service: CustomerReturnService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    customer_return_allocation_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    outbound = create_outbound(
+        customer_name="Cliente Oficina",
+    )
+
+    outbound_repository.get_by_work_order_number.return_value = (
+        outbound
+    )
+
+    outbound_item_repository.list_by_outbound.return_value = [
+        create_outbound_item(
+            outbound_item_id=20,
+            part_id=30,
+            quantity=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_allocation(
+            quantity_allocated=2,
+            outbound_item_id=20,
+        )
+    ]
+
+    part_repository.get_by_id.return_value = (
+        SimpleNamespace(
+            id=30,
+            part_code="2R0198133AX",
+            name="Compressor de ar",
+        )
+    )
+
+    result = (
+        service.get_return_origin(
+            return_type="WORK_ORDER",
+            reference_number="OS-100",
+        )
+    )
+
+    assert result.outbound_id == 10
+    assert result.return_type == "WORK_ORDER"
+    assert result.reference_number == "OS-100"
+    assert result.customer_name == (
+        "Cliente Oficina"
+    )
+
+    assert (
+        result.total_outbound_quantity
+        == 5
+    )
+
+    assert (
+        result.total_returned_quantity
+        == 2
+    )
+
+    assert (
+        result.total_pending_quantity
+        == 3
+    )
+
+    assert len(result.items) == 1
+
+    item = result.items[0]
+
+    assert item.part_id == 30
+    assert item.part_code == "2R0198133AX"
+    assert item.part_name == (
+        "Compressor de ar"
+    )
+
+    assert item.outbound_quantity == 5
+    assert item.returned_quantity == 2
+    assert item.pending_quantity == 3
+
+
+def test_should_return_sale_origin(
+    service: CustomerReturnService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    customer_return_allocation_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    outbound = create_outbound(
+        destination_type="SALE",
+        work_order_number=None,
+        sales_invoice_number="NFV-100",
+        customer_name="Cliente Balcão",
+    )
+
+    outbound_repository.get_by_sales_invoice_number.return_value = (
+        outbound
+    )
+
+    outbound_item_repository.list_by_outbound.return_value = [
+        create_outbound_item(
+            quantity=2,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = (
+        []
+    )
+
+    part_repository.get_by_id.return_value = (
+        SimpleNamespace(
+            id=30,
+            part_code="ABC123",
+            name="Alternador",
+        )
+    )
+
+    result = (
+        service.get_return_origin(
+            return_type="SALE",
+            reference_number="NFV-100",
+        )
+    )
+
+    assert result.return_type == "SALE"
+
+    assert result.customer_name == (
+        "Cliente Balcão"
+    )
+
+    assert (
+        result.total_pending_quantity
+        == 2
+    )
+
+
+def test_should_return_zero_pending_when_item_is_fully_returned(
+    service: CustomerReturnService,
+    outbound_repository: Mock,
+    outbound_item_repository: Mock,
+    customer_return_allocation_repository: Mock,
+    part_repository: Mock,
+) -> None:
+    outbound_repository.get_by_work_order_number.return_value = (
+        create_outbound()
+    )
+
+    outbound_item_repository.list_by_outbound.return_value = [
+        create_outbound_item(
+            quantity=5,
+        )
+    ]
+
+    customer_return_allocation_repository.list_by_outbound_item.return_value = [
+        create_allocation(
+            quantity_allocated=5,
+        )
+    ]
+
+    part_repository.get_by_id.return_value = (
+        SimpleNamespace(
+            id=30,
+            part_code="ABC123",
+            name="Peça Teste",
+        )
+    )
+
+    result = (
+        service.get_return_origin(
+            return_type="WORK_ORDER",
+            reference_number="OS-100",
+        )
+    )
+
+    assert (
+        result.total_pending_quantity
+        == 0
+    )
+
+    assert (
+        result.items[0]
+        .pending_quantity
+        == 0
+    )

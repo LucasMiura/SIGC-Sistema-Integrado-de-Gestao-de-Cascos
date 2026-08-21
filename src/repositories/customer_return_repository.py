@@ -19,12 +19,22 @@ class CustomerReturnRepository:
         )
         return self.session.scalar(statement)
 
-    def list_all(self) -> list[CustomerReturn]:
-        statement = select(CustomerReturn).order_by(
-            CustomerReturn.created_at,
-            CustomerReturn.id,
+    def list_all(
+        self,
+    ) -> list[CustomerReturn]:
+        statement = (
+            select(CustomerReturn)
+            .order_by(
+                CustomerReturn.created_at.desc(),
+                CustomerReturn.id.desc(),
+            )
         )
-        return list(self.session.scalars(statement).all())
+
+        return list(
+            self.session.scalars(
+                statement
+            ).all()
+        )
 
     def add(
         self,

@@ -6,6 +6,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Path,
+    Query,
     status,
 )
 from sqlalchemy.orm import Session
@@ -34,7 +35,9 @@ from src.schemas.customer_return_schema import (
     CustomerReturnCreateRequest,
     CustomerReturnItemCreateRequest,
     CustomerReturnItemResponse,
+    CustomerReturnOriginResponse,
     CustomerReturnResponse,
+    CustomerReturnType,
 )
 from src.services.customer_return_service import (
     CustomerReturnService,
@@ -318,6 +321,67 @@ def list_customer_returns(
         )
         for customer_return in customer_returns
     ]
+
+
+@router.get(
+    "/origin",
+    response_model=(
+        CustomerReturnOriginResponse
+    ),
+    status_code=status.HTTP_200_OK,
+    summary=(
+        "Consultar saída para "
+        "devolução de cliente"
+    ),
+)
+def get_customer_return_origin(
+    service:
+        CustomerReturnServiceDependency,
+    _current_user:
+        OperationalUserDependency,
+    return_type:
+        CustomerReturnType = Query(
+            ...,
+            description=(
+                "Tipo da saída original"
+            ),
+        ),
+    reference_number: str = Query(
+        ...,
+        min_length=1,
+        max_length=100,
+        description=(
+            "Número da OS ou NF "
+            "da saída original"
+        ),
+    ),
+) -> CustomerReturnOriginResponse:
+    """
+    Consulta a saída original e retorna
+    os saldos pendentes por peça.
+    """
+
+    try:
+        origin = (
+            service.get_return_origin(
+                return_type=(
+                    return_type.value
+                ),
+                reference_number=(
+                    reference_number
+                ),
+            )
+        )
+
+        return (
+            CustomerReturnOriginResponse
+            .from_dto(origin)
+        )
+
+    except ValueError as error:
+        raise_customer_return_http_error(
+            error
+        )
 
 
 @router.get(

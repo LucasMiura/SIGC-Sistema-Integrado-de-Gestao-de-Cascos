@@ -25,6 +25,9 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 import {
   OutboundsPage,
 } from '../pages/OutboundsPage'
+import {
+  CustomerReturnsPage,
+} from '../pages/CustomerReturnsPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { PublicOnlyRoute } from './PublicOnlyRoute'
 import {
@@ -99,10 +102,7 @@ export function AppRoutes() {
               <RoleProtectedRoute
                 permission="customerReturns"
               >
-                <ModulePlaceholderPage
-                  title="Devoluções de clientes"
-                  description="Acompanhe devoluções totais e parciais vinculadas às saídas realizadas."
-                />
+                <CustomerReturnsPage />
               </RoleProtectedRoute>
             }
           />
