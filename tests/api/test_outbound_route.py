@@ -37,6 +37,7 @@ def create_outbound(
     destination_type: str = "WORK_ORDER",
     work_order_number: str | None = "OS-12345",
     sales_invoice_number: str | None = None,
+    customer_name: str = "Cliente Teste",
     created_by: int = 1,
     created_at: str = "2026-07-29T10:00:00",
     updated_at: str = "2026-07-29T10:00:00",
@@ -46,6 +47,7 @@ def create_outbound(
         destination_type=destination_type,
         work_order_number=work_order_number,
         sales_invoice_number=sales_invoice_number,
+        customer_name=customer_name,
         created_by=created_by,
         status=status,
     )
@@ -155,6 +157,7 @@ def test_should_create_outbound(
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
             "sales_invoice_number": None,
+            "customer_name": "Cliente Teste",
             "status": "ACTIVE",
         },
     )
@@ -166,6 +169,7 @@ def test_should_create_outbound(
         "destination_type": "WORK_ORDER",
         "work_order_number": "OS-12345",
         "sales_invoice_number": None,
+        "customer_name": "Cliente Teste",
         "created_by": 1,
         "created_at": "2026-07-29T10:00:00",
         "updated_at": "2026-07-29T10:00:00",
@@ -176,6 +180,7 @@ def test_should_create_outbound(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
         sales_invoice_number=None,
+        customer_name="Cliente Teste",
         created_by=1,
         status="ACTIVE",
     )
@@ -191,6 +196,7 @@ def test_should_create_outbound(
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
             "sales_invoice_number": None,
+            "customer_name": "Cliente Teste",
             "status": "ACTIVE",
             "created_by": 1,
         },
@@ -215,6 +221,7 @@ def test_should_create_outbound_with_sales_invoice(
         destination_type="SALE",
         work_order_number=None,
         sales_invoice_number="NFV-12345",
+        customer_name="Cliente Balcão",
     )
 
     service.create_outbound.return_value = (
@@ -226,6 +233,7 @@ def test_should_create_outbound_with_sales_invoice(
         json={
             "destination_type": "SALE",
             "sales_invoice_number": "NFV-12345",
+            "customer_name": "Cliente Balcão",
         },
     )
 
@@ -243,10 +251,15 @@ def test_should_create_outbound_with_sales_invoice(
         "sales_invoice_number"
     ] == "NFV-12345"
 
+    assert response.json()[
+        "customer_name"
+    ] == "Cliente Balcão"
+
     service.create_outbound.assert_called_once_with(
         destination_type="SALE",
         work_order_number=None,
         sales_invoice_number="NFV-12345",
+        customer_name="Cliente Balcão",
         created_by=1,
         status="ACTIVE",
     )
@@ -262,6 +275,7 @@ def test_should_create_outbound_with_sales_invoice(
             "destination_type": "SALE",
             "work_order_number": None,
             "sales_invoice_number": "NFV-12345",
+            "customer_name": "Cliente Balcão",
             "status": "ACTIVE",
             "created_by": 1,
         },
@@ -279,7 +293,9 @@ def test_should_use_active_status_by_default_on_create(
     service: Mock,
 ) -> None:
     service.create_outbound.return_value = (
-        create_outbound()
+        create_outbound(
+            customer_name="Cliente Teste",
+        )
     )
 
     response = client.post(
@@ -287,6 +303,7 @@ def test_should_use_active_status_by_default_on_create(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
+            "customer_name": "Cliente Teste",
         },
     )
 
@@ -296,6 +313,7 @@ def test_should_use_active_status_by_default_on_create(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
         sales_invoice_number=None,
+        customer_name="Cliente Teste",
         created_by=1,
         status="ACTIVE",
     )
@@ -306,7 +324,9 @@ def test_should_rollback_when_audit_fails_on_create(
     session: Mock,
     audit_service: Mock,
 ) -> None:
-    outbound = create_outbound()
+    outbound = create_outbound(
+        customer_name="Cliente Teste",
+    )
 
     service.create_outbound.return_value = (
         outbound
@@ -323,6 +343,7 @@ def test_should_rollback_when_audit_fails_on_create(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
+            "customer_name": "Cliente Teste",
         },
     )
 
@@ -332,6 +353,7 @@ def test_should_rollback_when_audit_fails_on_create(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
         sales_invoice_number=None,
+        customer_name="Cliente Teste",
         created_by=1,
         status="ACTIVE",
     )
@@ -361,6 +383,7 @@ def test_should_return_400_when_reference_numbers_are_missing(
         "/outbounds",
         json={
             "destination_type": "WORK_ORDER",
+            "customer_name": "Cliente Teste",
         },
     )
 
@@ -374,9 +397,7 @@ def test_should_return_400_when_reference_numbers_are_missing(
     }
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
-
     session.refresh.assert_not_called()
 
 
@@ -399,6 +420,7 @@ def test_should_return_400_when_work_order_is_duplicated(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
+            "customer_name": "Cliente Teste",
         },
     )
 
@@ -412,7 +434,6 @@ def test_should_return_400_when_work_order_is_duplicated(
     }
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
 
 
@@ -435,6 +456,7 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
         json={
             "destination_type": "SALE",
             "sales_invoice_number": "NFV-12345",
+            "customer_name": "Cliente Teste",
         },
     )
 
@@ -448,7 +470,6 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
     }
 
     session.rollback.assert_called_once_with()
-
     session.commit.assert_not_called()
 
 
@@ -462,6 +483,7 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
             {
                 "destination_type": "",
                 "work_order_number": "OS-12345",
+                "customer_name": "Cliente Teste",
             },
             "destination_type",
         ),
@@ -469,9 +491,18 @@ def test_should_return_400_when_sales_invoice_is_duplicated(
             {
                 "destination_type": "WORK_ORDER",
                 "work_order_number": "OS-12345",
+                "customer_name": "Cliente Teste",
                 "status": "PENDING",
             },
             "status",
+        ),
+        (
+            {
+                "destination_type": "WORK_ORDER",
+                "work_order_number": "OS-12345",
+                "customer_name": "",
+            },
+            "customer_name",
         ),
     ],
 )
@@ -496,6 +527,28 @@ def test_should_return_422_when_create_payload_is_invalid(
     service.create_outbound.assert_not_called()
 
 
+def test_should_return_422_when_customer_name_is_missing(
+    client: TestClient,
+    service: Mock,
+) -> None:
+    response = client.post(
+        "/outbounds",
+        json={
+            "destination_type": "WORK_ORDER",
+            "work_order_number": "OS-12345",
+        },
+    )
+
+    assert response.status_code == 422
+
+    assert any(
+        error["loc"][-1] == "customer_name"
+        for error in response.json()["detail"]
+    )
+
+    service.create_outbound.assert_not_called()
+
+
 def test_should_return_422_when_create_payload_has_extra_field(
     client: TestClient,
     service: Mock,
@@ -505,6 +558,7 @@ def test_should_return_422_when_create_payload_has_extra_field(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
+            "customer_name": "Cliente Teste",
             "unexpected_field": "valor",
         },
     )
@@ -536,6 +590,7 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
         json={
             "destination_type": "WORK_ORDER",
             "work_order_number": "OS-12345",
+            "customer_name": "Cliente Teste",
         },
     )
 
@@ -545,6 +600,7 @@ def test_should_rollback_when_unexpected_error_occurs_on_create(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
         sales_invoice_number=None,
+        customer_name="Cliente Teste",
         created_by=1,
         status="ACTIVE",
     )
@@ -766,6 +822,7 @@ def test_should_get_outbound(
         "destination_type": "WORK_ORDER",
         "work_order_number": "OS-12345",
         "sales_invoice_number": None,
+        "customer_name": "Cliente Teste",
         "created_by": 1,
         "created_at": "2026-07-29T10:00:00",
         "updated_at": "2026-07-29T10:00:00",
@@ -915,6 +972,63 @@ def test_should_update_only_status(
     service.update_outbound.assert_called_once_with(
         outbound_id=10,
         status="ACTIVE",
+    )
+
+def test_should_update_outbound_customer_name(
+    client: TestClient,
+    service: Mock,
+    audit_service: Mock,
+) -> None:
+    existing = create_outbound(
+        customer_name="Cliente Antigo",
+    )
+
+    updated = create_outbound(
+        customer_name="Cliente Atualizado",
+    )
+
+    service.get_outbound.return_value = (
+        existing
+    )
+
+    service.update_outbound.return_value = (
+        updated
+    )
+
+    response = client.patch(
+        "/outbounds/10",
+        json={
+            "customer_name":
+                "Cliente Atualizado",
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert response.json()[
+        "customer_name"
+    ] == "Cliente Atualizado"
+
+    service.update_outbound.assert_called_once_with(
+        outbound_id=10,
+        customer_name="Cliente Atualizado",
+    )
+
+    audit_service.register.assert_called_once_with(
+        user_id=1,
+        action="UPDATE",
+        module="OUTBOUND",
+        entity_type="Outbound",
+        entity_id=10,
+        description="Saída atualizada.",
+        old_values={
+            "customer_name":
+                "Cliente Antigo",
+        },
+        new_values={
+            "customer_name":
+                "Cliente Atualizado",
+        },
     )
 
 

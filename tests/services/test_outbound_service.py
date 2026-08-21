@@ -161,6 +161,7 @@ def create_outbound(
     destination_type: str = "WORK_ORDER",
     work_order_number: str | None = "OS-12345",
     sales_invoice_number: str | None = None,
+    customer_name: str = "Cliente Teste",
     created_by: int = 30,
     status: str = "ACTIVE",
 ) -> SimpleNamespace:
@@ -169,6 +170,7 @@ def create_outbound(
         destination_type=destination_type,
         work_order_number=work_order_number,
         sales_invoice_number=sales_invoice_number,
+        customer_name=customer_name,
         created_by=created_by,
         status=status,
     )
@@ -185,6 +187,7 @@ def test_should_create_outbound_with_work_order(
     outbound = service.create_outbound(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
+        customer_name="Cliente Teste",
         created_by=30,
     )
 
@@ -221,6 +224,7 @@ def test_should_create_outbound_with_sales_invoice(
     outbound = service.create_outbound(
         destination_type="SALE",
         sales_invoice_number="NFV-12345",
+        customer_name="Cliente Teste",
         created_by=30,
     )
 
@@ -262,6 +266,7 @@ def test_should_create_outbound_with_both_reference_numbers(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
         sales_invoice_number="NFV-12345",
+        customer_name="Cliente Teste",
         created_by=30,
     )
 
@@ -301,6 +306,7 @@ def test_should_normalize_outbound_fields_on_create(
         destination_type="  WORK_ORDER  ",
         work_order_number="  OS-12345  ",
         sales_invoice_number="  NFV-12345  ",
+        customer_name="Cliente Teste",
         created_by=30,
         status="  active  ",
     )
@@ -313,6 +319,8 @@ def test_should_normalize_outbound_fields_on_create(
         == "NFV-12345"
     )
 
+    assert outbound.customer_name == "Cliente Teste"
+
     assert outbound.status == "ACTIVE"
 
     outbound_repository.get_by_work_order_number.assert_called_once_with(
@@ -322,6 +330,24 @@ def test_should_normalize_outbound_fields_on_create(
     outbound_repository.get_by_sales_invoice_number.assert_called_once_with(
         "NFV-12345"
     )
+
+
+def test_should_raise_error_when_customer_name_is_blank(
+    service: OutboundService,
+    outbound_repository: Mock,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="O nome do cliente é obrigatório.",
+    ):
+        service.create_outbound(
+            destination_type="WORK_ORDER",
+            work_order_number="OS-12345",
+            customer_name="   ",
+            created_by=30,
+        )
+
+    outbound_repository.add.assert_not_called()
 
 
 def test_should_convert_blank_work_order_to_none(
@@ -336,6 +362,7 @@ def test_should_convert_blank_work_order_to_none(
         destination_type="SALE",
         work_order_number="   ",
         sales_invoice_number="NFV-12345",
+        customer_name="Cliente Teste",
         created_by=30,
     )
 
@@ -364,6 +391,7 @@ def test_should_convert_blank_sales_invoice_to_none(
     outbound = service.create_outbound(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
+        customer_name="Cliente Teste",
         sales_invoice_number="   ",
         created_by=30,
     )
@@ -397,6 +425,7 @@ def test_should_return_repository_result_on_create(
     result = service.create_outbound(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
+        customer_name="Cliente Teste",
         created_by=30,
     )
 
@@ -443,6 +472,7 @@ def test_should_raise_error_when_destination_type_is_blank(
         service.create_outbound(
             destination_type="   ",
             work_order_number="OS-12345",
+            customer_name="Cliente Teste",
             created_by=30,
         )
 
@@ -475,6 +505,7 @@ def test_should_raise_error_when_created_by_is_invalid(
         service.create_outbound(
             destination_type="WORK_ORDER",
             work_order_number="OS-12345",
+            customer_name="Cliente Teste",
             created_by=created_by,
         )
 
@@ -498,6 +529,7 @@ def test_should_raise_error_when_reference_numbers_are_missing(
     ):
         service.create_outbound(
             destination_type="WORK_ORDER",
+            customer_name="Cliente Teste",
             created_by=30,
         )
 
@@ -523,6 +555,7 @@ def test_should_raise_error_when_reference_numbers_are_blank(
             destination_type="WORK_ORDER",
             work_order_number="   ",
             sales_invoice_number="   ",
+            customer_name="Cliente Teste",
             created_by=30,
         )
 
@@ -547,6 +580,7 @@ def test_should_raise_error_when_outbound_is_created_cancelled(
         service.create_outbound(
             destination_type="WORK_ORDER",
             work_order_number="OS-12345",
+            customer_name="Cliente Teste",
             created_by=30,
             status="CANCELLED",
         )
@@ -586,6 +620,7 @@ def test_should_raise_error_when_create_status_is_invalid(
         service.create_outbound(
             destination_type="WORK_ORDER",
             work_order_number="OS-12345",
+            customer_name="Cliente Teste",
             created_by=30,
             status=status,
         )
@@ -615,6 +650,7 @@ def test_should_raise_error_when_work_order_is_duplicated(
         service.create_outbound(
             destination_type="WORK_ORDER",
             work_order_number="OS-12345",
+            customer_name="Cliente Teste",
             created_by=30,
         )
 
@@ -649,6 +685,7 @@ def test_should_raise_error_when_sales_invoice_is_duplicated(
         service.create_outbound(
             destination_type="SALE",
             sales_invoice_number="NFV-12345",
+            customer_name="Cliente Teste",
             created_by=30,
         )
 
@@ -671,6 +708,7 @@ def test_should_not_check_blank_optional_reference_for_duplicates(
         destination_type="WORK_ORDER",
         work_order_number="OS-12345",
         sales_invoice_number="   ",
+        customer_name="Cliente Teste",
         created_by=30,
     )
 
@@ -2134,6 +2172,49 @@ def test_should_update_outbound_sales_invoice_number(
         outbound
     )
 
+def test_should_update_customer_name(
+    service: OutboundService,
+    outbound_repository: Mock,
+) -> None:
+    outbound = create_outbound(
+        customer_name="Cliente Antigo",
+    )
+
+    outbound_repository.get_by_id.return_value = (
+        outbound
+    )
+
+    result = service.update_outbound(
+        outbound_id=10,
+        customer_name="  Cliente Atualizado  ",
+    )
+
+    assert result.customer_name == (
+        "Cliente Atualizado"
+    )
+
+    outbound_repository.save.assert_called_once_with(
+        outbound
+    )
+
+def test_should_reject_blank_customer_name_on_update(
+    service: OutboundService,
+    outbound_repository: Mock,
+) -> None:
+    outbound_repository.get_by_id.return_value = (
+        create_outbound()
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="O nome do cliente é obrigatório.",
+    ):
+        service.update_outbound(
+            outbound_id=10,
+            customer_name="   ",
+        )
+
+    outbound_repository.save.assert_not_called()
 
 def test_should_update_all_outbound_fields(
     service: OutboundService,

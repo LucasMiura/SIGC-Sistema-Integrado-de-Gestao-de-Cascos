@@ -74,8 +74,9 @@ class OutboundService:
         self.part_repository = part_repository
 
     def create_outbound(
-        self,
+    self,
         destination_type: str,
+        customer_name: str,
         created_by: int,
         work_order_number: str | None = None,
         sales_invoice_number: str | None = None,
@@ -97,6 +98,13 @@ class OutboundService:
         normalized_sales_invoice_number = (
             self._normalize_optional_text(
                 sales_invoice_number
+            )
+        )
+
+        normalized_customer_name = (
+            self._normalize_required_text(
+                customer_name,
+                "O nome do cliente é obrigatório.",
             )
         )
 
@@ -146,6 +154,9 @@ class OutboundService:
             ),
             sales_invoice_number=(
                 normalized_sales_invoice_number
+            ),
+            customer_name=(
+                normalized_customer_name
             ),
             created_by=created_by,
             status=normalized_status,
@@ -473,6 +484,7 @@ class OutboundService:
         destination_type: str | None = None,
         work_order_number: str | None = None,
         sales_invoice_number: str | None = None,
+        customer_name: str | None = None,
         status: str | None = None,
     ) -> Outbound:
         outbound = self.get_outbound(
@@ -530,6 +542,13 @@ class OutboundService:
 
             outbound.sales_invoice_number = (
                 normalized_sales_invoice_number
+            )
+        if customer_name is not None:
+            outbound.customer_name = (
+                self._normalize_required_text(
+                    customer_name,
+                    "O nome do cliente é obrigatório.",
+                )
             )
 
         if status is not None:

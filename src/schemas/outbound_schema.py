@@ -46,6 +46,19 @@ class OutboundCreateRequest(BaseModel):
         ],
     )
 
+    customer_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description=(
+            "Nome simplificado do cliente relacionado "
+            "à saída"
+        ),
+        examples=[
+            "Transportadora Exemplo Ltda.",
+        ],
+    )
+
 
     status: OutboundStatus = Field(
         default=OutboundStatus.ACTIVE,
@@ -84,6 +97,18 @@ class OutboundUpdateRequest(BaseModel):
         description="Novo número da Nota Fiscal de venda",
         examples=[
             "NFV-67890",
+        ],
+    )
+
+    customer_name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description=(
+            "Novo nome simplificado do cliente"
+        ),
+        examples=[
+            "Transportadora Exemplo Ltda.",
         ],
     )
 
@@ -148,6 +173,7 @@ class OutboundResponse(BaseModel):
     destination_type: str
     work_order_number: str | None
     sales_invoice_number: str | None
+    customer_name: str
     created_by: int
     created_at: str
     updated_at: str

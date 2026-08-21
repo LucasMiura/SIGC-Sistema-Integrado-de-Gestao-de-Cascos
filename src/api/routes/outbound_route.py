@@ -208,6 +208,9 @@ def create_outbound(
             sales_invoice_number=(
                 payload.sales_invoice_number
             ),
+            customer_name=(
+                payload.customer_name
+            ),
             created_by=current_user.id,
             status=payload.status.value,
         )
@@ -228,6 +231,9 @@ def create_outbound(
                 ),
                 "sales_invoice_number": (
                     outbound.sales_invoice_number
+                ),
+                "customer_name": (
+                    outbound.customer_name
                 ),
                 "status": outbound.status,
                 "created_by": outbound.created_by,

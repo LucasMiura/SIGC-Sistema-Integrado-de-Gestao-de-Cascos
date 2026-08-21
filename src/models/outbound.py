@@ -28,6 +28,11 @@ class Outbound(Base):
         nullable=True,
     )
 
+    customer_name: Mapped[str] = mapped_column(
+        String(200),
+        nullable=False,
+    )
+
     created_by: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("users.id"),
